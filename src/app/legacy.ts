@@ -8,8 +8,6 @@ import type { PolicyTarget } from "../api";
 export const legacy = {
   policy: (target: PolicyTarget) => "/policies/edit?" + sourceQuery(target),
   policies: () => "/policies",
-  tasks: () => "/tasks",
-  task: (id: string) => "/tasks/" + encodeURIComponent(id),
   /** Classic repository setup, still used for storage types the new UI doesn't support yet. */
   repository: () => "/repo",
   preferences: () => "/preferences",

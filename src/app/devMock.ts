@@ -391,18 +391,113 @@ export async function installDevMock(mode: DevMockMode): Promise<void> {
     mounted.delete(decodeURIComponent((config.url ?? "").split("/").pop() ?? ""));
     return [200, {}];
   });
-  mock
-    .onPost("/restore")
-    .reply(() => [
-      200,
-      {
-        id: "restore-" + Date.now(),
-        kind: "Restore",
-        description: "Restore",
-        status: "RUNNING",
-        startTime: new Date().toISOString(),
+  mock.onPost("/restore").reply(() => [
+    200,
+    {
+      id: "restore-" + Date.now(),
+      kind: "Restore",
+      description: "Restore",
+      status: "RUNNING",
+      startTime: new Date().toISOString(),
+    },
+  ]);
+
+  // ---- tasks ----
+  const pastTasks = [
+    {
+      id: "t-108",
+      kind: "Snapshot",
+      description: "me@workstation:D:\\Projects",
+      status: "FAILED",
+      startTime: ago(50 * min),
+      endTime: ago(47 * min),
+      errorMessage: "1 file could not be read (permission denied)",
+      counters: {
+        Errors: { value: 1, level: "error" },
+        "Hashed Files": { value: 152004 },
+        "Hashed Bytes": { value: 23.9 * GB, units: "bytes" },
       },
-    ]);
+    },
+    {
+      id: "t-107",
+      kind: "Maintenance",
+      description: "Periodic maintenance",
+      status: "SUCCESS",
+      startTime: ago(2 * hour),
+      endTime: ago(2 * hour - 4000),
+    },
+    {
+      id: "t-106",
+      kind: "Restore",
+      description: "Destination: C:\\Users\\me\\Restored",
+      status: "SUCCESS",
+      startTime: ago(5 * hour),
+      endTime: ago(5 * hour - 90000),
+      counters: { "Restored Files": { value: 412 }, "Restored Bytes": { value: 1.2 * GB, units: "bytes" } },
+    },
+    {
+      id: "t-105",
+      kind: "Snapshot",
+      description: "me@workstation:C:\\Users\\me\\Pictures",
+      status: "CANCELED",
+      startTime: ago(1 * day),
+      endTime: ago(1 * day - 60000),
+    },
+  ];
+  const runningTasks = () =>
+    sources
+      .filter((s) => s.status === "UPLOADING" && s.currentTask)
+      .map((s) => ({
+        id: s.currentTask as string,
+        kind: "Snapshot",
+        description: `${s.source.userName}@${s.source.host}:${s.source.path}`,
+        status: "RUNNING",
+        startTime: ago(3 * min),
+        progressInfo: s.upload?.directory ? `Hashing ${s.upload.directory}` : "",
+        counters: {
+          "Hashed Files": { value: s.upload?.hashedFiles ?? 0 },
+          "Hashed Bytes": { value: s.upload?.hashedBytes ?? 0, units: "bytes" },
+        },
+      }));
+  const allTasks = () => [...runningTasks(), ...pastTasks];
+  const taskId = (url?: string) => decodeURIComponent((url ?? "").split("/")[2] ?? "");
+  mock.onGet("/tasks").reply(() => [200, { tasks: allTasks() }]);
+  mock.onGet(/^\/tasks\/[^/]+\/logs$/).reply((config) => {
+    const t = allTasks().find((x) => x.id === taskId(config.url));
+    const start = new Date(t?.startTime ?? Date.now()).valueOf() / 1000;
+    const logs = [
+      { level: 0, ts: start, mod: "kopia/server", msg: "starting " + (t?.description ?? "") },
+      { level: 0, ts: start + 1, mod: "uploader", msg: "uploading", parallel: 8 },
+      { level: 2, ts: start + 2, mod: "uploader", msg: "skipping locked file: ~$report.docx" },
+      ...(t?.status === "FAILED"
+        ? [{ level: 3, ts: start + 3, mod: "uploader", msg: "error reading Projects/locked.db: permission denied" }]
+        : []),
+      ...(t?.status === "RUNNING"
+        ? [
+            {
+              level: 0,
+              ts: Date.now() / 1000,
+              mod: "uploader",
+              msg: "hashed " + (t.counters?.["Hashed Files"]?.value ?? 0) + " files",
+            },
+          ]
+        : []),
+    ];
+    return [200, { logs }];
+  });
+  mock.onPost(/^\/tasks\/[^/]+\/cancel$/).reply((config) => {
+    const s = sources.find((x) => x.currentTask === taskId(config.url));
+    if (s) {
+      s.status = "IDLE";
+      s.upload = null;
+      s.currentTask = undefined;
+    }
+    return [200, {}];
+  });
+  mock.onGet(/^\/tasks\/[^/]+$/).reply((config) => {
+    const t = allTasks().find((x) => x.id === taskId(config.url));
+    return t ? [200, t] : [404, { code: "NOT_FOUND", error: "task not found" }];
+  });
 
   // Anything else: make missing mocks obvious instead of hitting the network.
   mock.onAny().reply((config) => {

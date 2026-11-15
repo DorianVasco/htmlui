@@ -221,7 +221,7 @@ function SourceActions({
             Edit policy
           </Menu.Item>
           {s.currentTask && (
-            <Menu.Item component="a" href={legacy.task(s.currentTask)} leftSection={<IconListDetails size={16} />}>
+            <Menu.Item component={Link} to={"/tasks/" + encodeURIComponent(s.currentTask)} leftSection={<IconListDetails size={16} />}>
               Task details
             </Menu.Item>
           )}

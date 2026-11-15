@@ -10,6 +10,7 @@ import { PreferencesProvider } from "./preferences";
 import { DashboardPage } from "./pages/DashboardPage";
 import { NewSnapshotPage } from "./pages/NewSnapshotPage";
 import { SourceDetailPage } from "./pages/source/SourceDetailPage";
+import { TasksPage } from "./pages/tasks/TasksPage";
 
 /**
  * While the new UI is in development it lives under /ui; route paths below
@@ -28,6 +29,8 @@ export function AppRoutes() {
             <Route path="/snapshots" element={<DashboardPage />} />
             <Route path="/snapshots/new" element={<NewSnapshotPage />} />
             <Route path="/snapshots/single-source" element={<SourceDetailPage />} />
+            <Route path="/tasks" element={<TasksPage />} />
+            <Route path="/tasks/:tid" element={<TasksPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/snapshots" replace />} />
         </Route>
@@ -39,9 +42,10 @@ export function AppRoutes() {
 export function App() {
   return (
     <MantineProvider theme={theme} defaultColorScheme="auto">
-      <Notifications position="top-right" />
       <PreferencesProvider>
         <BrowserRouter basename={BASENAME}>
+          {/* Inside the router, so notifications can contain router links. */}
+          <Notifications position="top-right" />
           <AppRoutes />
         </BrowserRouter>
       </PreferencesProvider>

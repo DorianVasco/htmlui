@@ -1,6 +1,7 @@
 // Restores a snapshot (or a single file/folder of one) to a folder, ZIP or TAR file
 // on the server's computer. Mirrors the old UI's restore request.
 import React, { useState } from "react";
+import { Link } from "react-router";
 import {
   Anchor,
   Button,
@@ -18,7 +19,6 @@ import { notifications } from "@mantine/notifications";
 import { IconChevronDown, IconChevronRight, IconFolder, IconRestore } from "@tabler/icons-react";
 import { api } from "../../../api";
 import type { RestoreRequest } from "../../../api";
-import { legacy } from "../../legacy";
 
 export interface RestoreTarget {
   /** Object ID of the snapshot root or of an entry inside it. */
@@ -117,7 +117,7 @@ function RestoreForm({ target, onClose }: { target: RestoreTarget; onClose: () =
         message: (
           <>
             Restoring to {destination.trim()}.{" "}
-            <Anchor href={legacy.task(task.id)} size="sm">
+            <Anchor component={Link} to={"/tasks/" + encodeURIComponent(task.id)} size="sm">
               Show progress
             </Anchor>
           </>

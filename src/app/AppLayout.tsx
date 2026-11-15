@@ -228,7 +228,7 @@ export function AppLayout() {
           <Group gap="sm" wrap="nowrap">
             {runningCount > 0 && (
               <Indicator processing size={8} offset={2}>
-                <Badge component="a" href={legacy.tasks()} variant="light" style={{ cursor: "pointer" }}>
+                <Badge component={Link} to="/tasks?status=running" variant="light" style={{ cursor: "pointer" }}>
                   {runningCount} running
                 </Badge>
               </Indicator>
@@ -242,7 +242,7 @@ export function AppLayout() {
         <AppShell.Section grow component={ScrollArea}>
           <AppNavLink label="Snapshots" to="/snapshots" icon={IconArchive} onClick={close} />
           <LegacyNavLink label="Policies" href={legacy.policies()} icon={IconShieldCheck} />
-          <LegacyNavLink label="Tasks" href={legacy.tasks()} icon={IconListCheck} />
+          <AppNavLink label="Tasks" to="/tasks" icon={IconListCheck} onClick={close} />
           <AppNavLink label="Repository" to="/repo" icon={IconDatabase} onClick={close} />
           <LegacyNavLink label="Preferences" href={legacy.preferences()} icon={IconSettings} />
         </AppShell.Section>
