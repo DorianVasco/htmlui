@@ -110,9 +110,9 @@ export interface SourceStatus {
   source: SourceInfo;
   status: SourceStatusKind;
   schedule?: Record<string, unknown>;
-  lastSnapshot?: SnapshotSummary;
-  nextSnapshotTime?: string;
-  upload?: UploadCounters;
+  lastSnapshot?: SnapshotSummary | null;
+  nextSnapshotTime?: string | null;
+  upload?: UploadCounters | null;
   currentTask?: string;
   [key: string]: unknown;
 }
