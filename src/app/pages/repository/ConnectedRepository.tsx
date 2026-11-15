@@ -7,6 +7,7 @@ import { api } from "../../../api";
 import type { RepoStatus } from "../../../api";
 import { PageHeader } from "../../components";
 import { useRepoStatusContext } from "../../repoStatus";
+import { setActiveRepo, updateRepo } from "../../knownRepos";
 
 function showError(title: string, err: unknown) {
   notifications.show({ color: "red", title, message: err instanceof Error ? err.message : String(err) });
@@ -27,7 +28,7 @@ function detailRows(s: RepoStatus): [string, React.ReactNode][] {
   return rows.filter(([, v]) => v !== undefined && v !== "");
 }
 
-export function ConnectedRepository({ status }: { status: RepoStatus }) {
+export function ConnectedRepository({ status, currentId }: { status: RepoStatus; currentId?: string }) {
   const repoStatus = useRepoStatusContext();
   const [description, setDescription] = useState(status.description ?? "");
   const [savingDescription, setSavingDescription] = useState(false);
@@ -38,6 +39,7 @@ export function ConnectedRepository({ status }: { status: RepoStatus }) {
     setSavingDescription(true);
     try {
       await api.repo.setDescription(description);
+      if (currentId) updateRepo(currentId, { description });
       await repoStatus.refresh();
       notifications.show({ color: "green", message: "Description saved" });
     } catch (err) {
@@ -51,6 +53,7 @@ export function ConnectedRepository({ status }: { status: RepoStatus }) {
     setDisconnecting(true);
     try {
       await api.repo.disconnect();
+      setActiveRepo(null);
       confirm.close();
       await repoStatus.refresh();
     } catch (err) {
@@ -114,7 +117,8 @@ export function ConnectedRepository({ status }: { status: RepoStatus }) {
       <Modal opened={confirmOpened} onClose={confirm.close} title="Disconnect from repository?" centered>
         <Stack>
           <Text size="sm">
-            This computer stops making snapshots until it is connected again. The repository and its snapshots are <b>not</b> deleted.
+            This computer stops making snapshots until it is connected again. The repository and its snapshots are <b>not</b> deleted, and it stays
+            in your repository list.
           </Text>
           <Group justify="flex-end">
             <Button variant="default" onClick={confirm.close}>

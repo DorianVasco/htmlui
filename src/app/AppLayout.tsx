@@ -1,5 +1,5 @@
 import React from "react";
-import { Link, NavLink as RouterNavLink, Outlet } from "react-router";
+import { Link, NavLink as RouterNavLink, Outlet, useNavigate } from "react-router";
 import {
   ActionIcon,
   Alert,
@@ -11,6 +11,7 @@ import {
   Group,
   Indicator,
   Loader,
+  Menu,
   NavLink,
   ScrollArea,
   Stack,
@@ -18,6 +19,7 @@ import {
   ThemeIcon,
   Title,
   Tooltip,
+  UnstyledButton,
   useComputedColorScheme,
   useMantineColorScheme,
 } from "@mantine/core";
@@ -25,11 +27,14 @@ import { useDisclosure } from "@mantine/hooks";
 import {
   IconAlertTriangle,
   IconArchive,
+  IconCheck,
   IconDatabase,
   IconDatabaseOff,
   IconExternalLink,
+  IconFolder,
   IconListCheck,
   IconMoon,
+  IconSelector,
   IconSettings,
   IconShieldCheck,
   IconSun,
@@ -37,6 +42,7 @@ import {
 import { useTasksSummary } from "../api";
 import { legacy } from "./legacy";
 import { useRepoStatusContext } from "./repoStatus";
+import { useCurrentKnownRepo, useKnownRepos } from "./knownRepos";
 
 function ColorSchemeToggle() {
   const { setColorScheme } = useMantineColorScheme();
@@ -144,6 +150,66 @@ export function RequireConnection() {
   return <Outlet />;
 }
 
+/** App title with the current repository; a menu for quick switching once repositories are known. */
+function RepositorySwitcher() {
+  const navigate = useNavigate();
+  const repoStatus = useRepoStatusContext();
+  const { repos } = useKnownRepos();
+  const current = useCurrentKnownRepo(repoStatus.data);
+  const connected = !!repoStatus.data?.connected;
+  const description = connected ? repoStatus.data?.description : undefined;
+
+  const title = (
+    <Stack gap={0} style={{ minWidth: 0 }}>
+      <Text fw={700} lh={1.1}>
+        Kopia
+      </Text>
+      {description && (
+        <Text size="xs" c="dimmed" lh={1.1} truncate>
+          {description}
+        </Text>
+      )}
+    </Stack>
+  );
+
+  if (!repos.length) return title;
+
+  return (
+    <Menu position="bottom-start" width={300} withinPortal>
+      <Menu.Target>
+        <UnstyledButton aria-label="Switch repository" style={{ minWidth: 0 }}>
+          <Group gap={4} wrap="nowrap">
+            {title}
+            <IconSelector size={14} color="var(--mantine-color-dimmed)" style={{ flexShrink: 0 }} />
+          </Group>
+        </UnstyledButton>
+      </Menu.Target>
+      <Menu.Dropdown>
+        <Menu.Label>Repositories</Menu.Label>
+        {repos.map((r) => (
+          <Menu.Item
+            key={r.id}
+            leftSection={r.id === current?.id ? <IconCheck size={16} /> : <IconFolder size={16} />}
+            disabled={r.id === current?.id}
+            onClick={() => navigate("/repo?switch=" + encodeURIComponent(r.id))}
+          >
+            <Text size="sm" truncate>
+              {r.description || "Unnamed repository"}
+            </Text>
+            <Text size="xs" c="dimmed" truncate>
+              {r.storage.config.path}
+            </Text>
+          </Menu.Item>
+        ))}
+        <Menu.Divider />
+        <Menu.Item leftSection={<IconSettings size={16} />} onClick={() => navigate("/repo")}>
+          Manage repositories
+        </Menu.Item>
+      </Menu.Dropdown>
+    </Menu>
+  );
+}
+
 export function AppLayout() {
   const [opened, { toggle, close }] = useDisclosure();
   const repoStatus = useRepoStatusContext();
@@ -157,16 +223,7 @@ export function AppLayout() {
           <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
             <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" aria-label="Toggle navigation" />
             <img src="/kopia-flat.svg" alt="" width={36} height={25} style={{ flexShrink: 0 }} />
-            <Stack gap={0} style={{ minWidth: 0 }}>
-              <Text fw={700} lh={1.1}>
-                Kopia
-              </Text>
-              {connected && repoStatus.data?.description && (
-                <Text size="xs" c="dimmed" lh={1.1} truncate>
-                  {repoStatus.data.description}
-                </Text>
-              )}
-            </Stack>
+            <RepositorySwitcher />
           </Group>
           <Group gap="sm" wrap="nowrap">
             {runningCount > 0 && (

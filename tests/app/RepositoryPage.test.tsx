@@ -7,6 +7,7 @@ import MockAdapter from "axios-mock-adapter";
 import { ApiError, apiClient } from "../../src/api";
 import { AppRoutes } from "../../src/app/App";
 import { isMissingDirectory } from "../../src/app/pages/repository/SetupWizard";
+import { resetKnownReposCache } from "../../src/app/knownRepos";
 import { installMantineDomStubs, renderWithMantine } from "../testutils/mantine";
 
 const ALGORITHMS = {
@@ -39,6 +40,8 @@ let connected: boolean;
 
 beforeAll(() => installMantineDomStubs());
 beforeEach(() => {
+  localStorage.clear();
+  resetKnownReposCache();
   connected = false;
   mock = new MockAdapter(apiClient);
   mock.onGet("/repo/status").reply(() => [200, connected ? CONNECTED : { connected: false }]);

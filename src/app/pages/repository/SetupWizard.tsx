@@ -23,6 +23,7 @@ import { IconAlertTriangle, IconCircleCheck, IconExternalLink, IconFolder, IconF
 import { api, ApiError, useApi } from "../../../api";
 import type { AlgorithmOption, Algorithms, RepoConnectRequest } from "../../../api";
 import { legacy } from "../../legacy";
+import { rememberableStorage, rememberRepo, setActiveRepo } from "../../knownRepos";
 import { useRepoStatusContext } from "../../repoStatus";
 import { STORAGE_TYPES } from "./storageTypes";
 
@@ -237,9 +238,21 @@ export function SetupWizard() {
 
     setSubmitting(true);
     setError(null);
+    let didDisconnect = false;
     try {
+      // A Kopia server holds one repository at a time: adding another replaces the current one.
+      if (repoStatus.data?.connected) {
+        await api.repo.disconnect();
+        setActiveRepo(null);
+        didDisconnect = true;
+      }
       if (mode === "create") await api.repo.create(request);
       else await api.repo.connect(request);
+
+      const remembered = rememberableStorage(storage);
+      if (remembered) {
+        rememberRepo({ storage: remembered, description, clientOptions: { username: effectiveUser, hostname: effectiveHost, readonly } });
+      }
       await repoStatus.refresh();
       notifications.show({
         color: "green",
@@ -248,7 +261,8 @@ export function SetupWizard() {
       });
       navigate("/snapshots");
     } catch (err) {
-      setError(errorText(err));
+      setError(errorText(err) + (didDisconnect ? " The server is now not connected to any repository." : ""));
+      if (didDisconnect) void repoStatus.refresh();
     } finally {
       setSubmitting(false);
     }
@@ -422,6 +436,15 @@ export function SetupWizard() {
                   </Accordion.Item>
                 )}
               </Accordion>
+
+              {repoStatus.data?.connected && (
+                <Alert color="yellow" icon={<IconInfoCircle />}>
+                  <Text size="sm">
+                    The server will disconnect from <b>{repoStatus.data.description || "the current repository"}</b> first – a Kopia server holds one
+                    repository at a time. You can switch back from the repository list.
+                  </Text>
+                </Alert>
+              )}
 
               {errorAlert}
 
