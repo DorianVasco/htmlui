@@ -145,7 +145,7 @@ describe("quick switching", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: "Add repository" }));
     await userEvent.click(await screen.findByRole("button", { name: "Local directory or NAS" }));
-    await userEvent.type(await screen.findByRole("textbox", { name: /Directory/ }), "E:\\second");
+    await userEvent.type(await screen.findByLabelText(/^Directory/, { selector: "input" }), "E:\\second");
     await userEvent.click(screen.getByRole("button", { name: "Continue" }));
     expect(await screen.findByText(/will disconnect from/)).toBeInTheDocument();
 
@@ -154,7 +154,7 @@ describe("quick switching", () => {
     await userEvent.click(screen.getByRole("button", { name: "Create repository" }));
 
     expect(await screen.findByText("Nothing is backed up yet.")).toBeInTheDocument();
-    expect(mock.history.post.map((r) => r.url)).toEqual(["/repo/exists", "/repo/disconnect", "/repo/create"]);
+    expect(mock.history.post.map((r) => r.url).filter((u) => u?.startsWith("/repo/"))).toEqual(["/repo/exists", "/repo/disconnect", "/repo/create"]);
     expect(JSON.parse(localStorage.getItem("kopia-known-repositories") ?? "[]")).toHaveLength(2);
   });
 });

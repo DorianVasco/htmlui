@@ -56,7 +56,7 @@ const renderAt = (route: string) => renderWithMantine(<AppRoutes />, { route });
 
 async function goToLocation(path: string) {
   await userEvent.click(await screen.findByRole("button", { name: "Local directory or NAS" }));
-  await userEvent.type(await screen.findByRole("textbox", { name: /Directory/ }), path);
+  await userEvent.type(await screen.findByLabelText(/^Directory/, { selector: "input" }), path);
   await userEvent.click(screen.getByRole("button", { name: "Continue" }));
 }
 

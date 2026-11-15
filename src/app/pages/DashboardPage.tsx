@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router";
 import {
   ActionIcon,
   Alert,
@@ -42,6 +43,7 @@ import type { SourceInfo, SourceStatus } from "../../api";
 import { PageHeader, StatCard } from "../components";
 import { absoluteTime, ownerName, relativeTime, sizeDisplayName } from "../format";
 import { legacy } from "../legacy";
+import { sourceDetailPath } from "./source/SourceDetailPage";
 import { usePreferences } from "../preferences";
 import {
   ALL_OWNERS,
@@ -79,7 +81,10 @@ function StatusCell({ s, base2, now }: { s: SourceStatus; base2: boolean; now: n
   switch (state) {
     case "uploading": {
       const p = uploadProgress(s);
-      const sizeText = p ? sizeDisplayName(p.doneBytes, base2) + (p.estimatedBytes ? " / " + sizeDisplayName(p.estimatedBytes, base2) : "") : "";
+      const sizeText = p
+        ? sizeDisplayName(p.doneBytes, base2) +
+          (p.estimatedBytes ? " / " + sizeDisplayName(p.estimatedBytes, base2) : "")
+        : "";
       return (
         <Stack gap={4} miw={150} data-testid="status-uploading">
           <Group justify="space-between" gap={4} wrap="nowrap">
@@ -90,7 +95,11 @@ function StatusCell({ s, base2, now }: { s: SourceStatus; base2: boolean; now: n
               {sizeText}
             </Text>
           </Group>
-          <Tooltip label={p?.directory ? `${p.files.toLocaleString()} files · ${p.directory}` : "Uploading"} multiline maw={360}>
+          <Tooltip
+            label={p?.directory ? `${p.files.toLocaleString()} files · ${p.directory}` : "Uploading"}
+            multiline
+            maw={360}
+          >
             <Progress value={p?.percent ?? 100} size="sm" animated striped={p?.percent === undefined} color="blue" />
           </Tooltip>
         </Stack>
@@ -181,7 +190,13 @@ function SourceActions({
     <Group gap={4} justify="flex-end" wrap="nowrap">
       {isActive(s) ? (
         <Tooltip label="Stop snapshot">
-          <ActionIcon variant="subtle" color="red" aria-label="Stop snapshot" loading={busy} onClick={() => onCancel(s.source)}>
+          <ActionIcon
+            variant="subtle"
+            color="red"
+            aria-label="Stop snapshot"
+            loading={busy}
+            onClick={() => onCancel(s.source)}
+          >
             <IconPlayerStop size={18} />
           </ActionIcon>
         </Tooltip>
@@ -199,7 +214,7 @@ function SourceActions({
           </ActionIcon>
         </Menu.Target>
         <Menu.Dropdown>
-          <Menu.Item component="a" href={legacy.sourceHistory(s.source)} leftSection={<IconHistory size={16} />}>
+          <Menu.Item component={Link} to={sourceDetailPath(s.source)} leftSection={<IconHistory size={16} />}>
             Snapshot history
           </Menu.Item>
           <Menu.Item component="a" href={legacy.policy(s.source)} leftSection={<IconShieldCheck size={16} />}>
@@ -241,7 +256,9 @@ export function DashboardPage() {
     const q = query.trim().toLowerCase();
     return ownerSources
       .filter((s) => !q || s.source.path.toLowerCase().includes(q) || ownerName(s.source).toLowerCase().includes(q))
-      .sort((a, b) => a.source.path.localeCompare(b.source.path) || ownerName(a.source).localeCompare(ownerName(b.source)));
+      .sort(
+        (a, b) => a.source.path.localeCompare(b.source.path) || ownerName(a.source).localeCompare(ownerName(b.source)),
+      );
   }, [ownerSources, query]);
 
   const run = async (src: SourceInfo, action: () => Promise<unknown>, errorTitle: string) => {
@@ -278,11 +295,17 @@ export function DashboardPage() {
       actions={
         <>
           <Tooltip label="Synchronize with repository">
-            <ActionIcon variant="default" size="lg" aria-label="Synchronize" loading={syncing} onClick={() => void sync()}>
+            <ActionIcon
+              variant="default"
+              size="lg"
+              aria-label="Synchronize"
+              loading={syncing}
+              onClick={() => void sync()}
+            >
               <IconRefresh size={18} />
             </ActionIcon>
           </Tooltip>
-          <Button component="a" href={legacy.newSnapshot()} leftSection={<IconPlus size={16} />}>
+          <Button component={Link} to="/snapshots/new" leftSection={<IconPlus size={16} />}>
             New snapshot
           </Button>
         </>
@@ -330,8 +353,19 @@ export function DashboardPage() {
       )}
 
       <SimpleGrid cols={{ base: 2, lg: 4 }} spacing={{ base: "xs", sm: "md" }} mb="lg">
-        <StatCard label="Sources" value={ownerSources.length} hint={`${withSnapshots} with snapshots`} icon={IconArchive} />
-        <StatCard label="Protected data" value={sizeDisplayName(protectedBytes, base2)} hint="size of latest snapshots" icon={IconDatabase} color="cyan" />
+        <StatCard
+          label="Sources"
+          value={ownerSources.length}
+          hint={`${withSnapshots} with snapshots`}
+          icon={IconArchive}
+        />
+        <StatCard
+          label="Protected data"
+          value={sizeDisplayName(protectedBytes, base2)}
+          hint="size of latest snapshots"
+          icon={IconDatabase}
+          color="cyan"
+        />
         <StatCard
           label="Next snapshot"
           value={next ? relativeTime(next.nextSnapshotTime, now) : "—"}
@@ -342,7 +376,11 @@ export function DashboardPage() {
         <StatCard
           label="Needs attention"
           value={attention.length}
-          hint={attention.length ? [failing && `${failing} with errors`, overdue && `${overdue} overdue`].filter(Boolean).join(" · ") : "all good"}
+          hint={
+            attention.length
+              ? [failing && `${failing} with errors`, overdue && `${overdue} overdue`].filter(Boolean).join(" · ")
+              : "all good"
+          }
           icon={IconAlertTriangle}
           color={attention.length ? "orange" : "green"}
         />
@@ -367,7 +405,13 @@ export function DashboardPage() {
               onChange={(v) => setOwnerChoice(v ?? LOCAL_OWNER)}
               allowDeselect={false}
               data={[
-                { group: "Show", items: [{ value: LOCAL_OWNER, label: `This computer (${localOwner})` }, { value: ALL_OWNERS, label: "All owners" }] },
+                {
+                  group: "Show",
+                  items: [
+                    { value: LOCAL_OWNER, label: `This computer (${localOwner})` },
+                    { value: ALL_OWNERS, label: "All owners" },
+                  ],
+                },
                 { group: "Owner", items: owners.map((o) => ({ value: o, label: o })) },
               ]}
             />
@@ -378,7 +422,7 @@ export function DashboardPage() {
           <Stack align="center" gap="xs" py="xl" px="md" ta="center">
             <Text c="dimmed">{ownerSources.length ? "No sources match the filter." : "Nothing is backed up yet."}</Text>
             {!ownerSources.length && (
-              <Button component="a" href={legacy.newSnapshot()} variant="light" leftSection={<IconPlus size={16} />}>
+              <Button component={Link} to="/snapshots/new" variant="light" leftSection={<IconPlus size={16} />}>
                 Create your first snapshot
               </Button>
             )}
@@ -400,12 +444,20 @@ export function DashboardPage() {
                 >
                   <Stack gap={6} style={{ minWidth: 0 }}>
                     <Box>
-                      <Anchor href={legacy.sourceHistory(s.source)} size="sm" fw={600} c="var(--mantine-color-text)" style={{ wordBreak: "break-all" }}>
+                      <Anchor
+                        component={Link}
+                        to={sourceDetailPath(s.source)}
+                        size="sm"
+                        fw={600}
+                        c="var(--mantine-color-text)"
+                        style={{ wordBreak: "break-all" }}
+                      >
                         {s.source.path}
                       </Anchor>
                       <Text size="xs" c="dimmed">
                         {ownerName(s.source)}
-                        {s.lastSnapshot && ` · ${relativeTime(s.lastSnapshot.startTime, now)} · ${sizeDisplayName(totalSize(s), base2)}`}
+                        {s.lastSnapshot &&
+                          ` · ${relativeTime(s.lastSnapshot.startTime, now)} · ${sizeDisplayName(totalSize(s), base2)}`}
                       </Text>
                     </Box>
                     <Group gap={6}>
@@ -413,7 +465,12 @@ export function DashboardPage() {
                       <ErrorBadge s={s} />
                     </Group>
                   </Stack>
-                  <SourceActions s={s} busy={!!busy[sourceKey(s.source)]} onStart={startSnapshot} onCancel={cancelSnapshot} />
+                  <SourceActions
+                    s={s}
+                    busy={!!busy[sourceKey(s.source)]}
+                    onStart={startSnapshot}
+                    onCancel={cancelSnapshot}
+                  />
                 </Group>
               ))}
             </Stack>
@@ -429,7 +486,10 @@ export function DashboardPage() {
                     <Table.Th ta="right">Size</Table.Th>
                     <Table.Th>Next</Table.Th>
                     <Table.Th w={90}>
-                      <Box component="span" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>
+                      <Box
+                        component="span"
+                        style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}
+                      >
                         Actions
                       </Box>
                     </Table.Th>
@@ -440,9 +500,21 @@ export function DashboardPage() {
                     <Table.Tr key={sourceKey(s.source)} data-testid="source-row">
                       <Table.Td>
                         <Group gap="sm" wrap="nowrap">
-                          <IconFolder size={20} stroke={1.5} color="var(--mantine-primary-color-filled)" style={{ flexShrink: 0 }} />
+                          <IconFolder
+                            size={20}
+                            stroke={1.5}
+                            color="var(--mantine-primary-color-filled)"
+                            style={{ flexShrink: 0 }}
+                          />
                           <Stack gap={0} style={{ minWidth: 0 }}>
-                            <Anchor href={legacy.sourceHistory(s.source)} size="sm" fw={600} c="var(--mantine-color-text)" style={{ wordBreak: "break-all" }}>
+                            <Anchor
+                              component={Link}
+                              to={sourceDetailPath(s.source)}
+                              size="sm"
+                              fw={600}
+                              c="var(--mantine-color-text)"
+                              style={{ wordBreak: "break-all" }}
+                            >
                               {s.source.path}
                             </Anchor>
                             <Text size="xs" c="dimmed">
@@ -456,7 +528,11 @@ export function DashboardPage() {
                       </Table.Td>
                       <Table.Td>
                         <Group gap={6}>
-                          <Text size="sm" title={absoluteTime(s.lastSnapshot?.startTime)} style={{ whiteSpace: "nowrap" }}>
+                          <Text
+                            size="sm"
+                            title={absoluteTime(s.lastSnapshot?.startTime)}
+                            style={{ whiteSpace: "nowrap" }}
+                          >
                             {s.lastSnapshot ? relativeTime(s.lastSnapshot.startTime, now) : "—"}
                           </Text>
                           <ErrorBadge s={s} />
@@ -471,7 +547,12 @@ export function DashboardPage() {
                         <NextSnapshot s={s} now={now} />
                       </Table.Td>
                       <Table.Td>
-                        <SourceActions s={s} busy={!!busy[sourceKey(s.source)]} onStart={startSnapshot} onCancel={cancelSnapshot} />
+                        <SourceActions
+                          s={s}
+                          busy={!!busy[sourceKey(s.source)]}
+                          onStart={startSnapshot}
+                          onCancel={cancelSnapshot}
+                        />
                       </Table.Td>
                     </Table.Tr>
                   ))}

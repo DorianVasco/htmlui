@@ -8,6 +8,8 @@ import { RepoStatusProvider } from "./repoStatus";
 import { RepositoryPage } from "./pages/repository/RepositoryPage";
 import { PreferencesProvider } from "./preferences";
 import { DashboardPage } from "./pages/DashboardPage";
+import { NewSnapshotPage } from "./pages/NewSnapshotPage";
+import { SourceDetailPage } from "./pages/source/SourceDetailPage";
 
 /**
  * While the new UI is in development it lives under /ui; route paths below
@@ -24,6 +26,8 @@ export function AppRoutes() {
           <Route path="/repo" element={<RepositoryPage />} />
           <Route element={<RequireConnection />}>
             <Route path="/snapshots" element={<DashboardPage />} />
+            <Route path="/snapshots/new" element={<NewSnapshotPage />} />
+            <Route path="/snapshots/single-source" element={<SourceDetailPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/snapshots" replace />} />
         </Route>

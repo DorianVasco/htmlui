@@ -3,11 +3,9 @@
 // <a href>, never as router <Link>. When a page is ported, replace its helper
 // here with a router path – this file is the single switch-over point.
 import { sourceQuery } from "../api";
-import type { PolicyTarget, SourceInfo } from "../api";
+import type { PolicyTarget } from "../api";
 
 export const legacy = {
-  newSnapshot: () => "/snapshots/new",
-  sourceHistory: (src: SourceInfo) => "/snapshots/single-source?" + sourceQuery(src),
   policy: (target: PolicyTarget) => "/policies/edit?" + sourceQuery(target),
   policies: () => "/policies",
   tasks: () => "/tasks",

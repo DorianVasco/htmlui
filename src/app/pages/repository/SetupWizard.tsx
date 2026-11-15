@@ -19,22 +19,20 @@ import {
   UnstyledButton,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconAlertTriangle, IconCircleCheck, IconExternalLink, IconFolder, IconFolderOpen, IconInfoCircle } from "@tabler/icons-react";
+import { IconAlertTriangle, IconCircleCheck, IconExternalLink, IconFolder, IconInfoCircle } from "@tabler/icons-react";
 import { api, ApiError, useApi } from "../../../api";
 import type { AlgorithmOption, Algorithms, RepoConnectRequest } from "../../../api";
 import { legacy } from "../../legacy";
-import { rememberableStorage, rememberRepo, setActiveRepo } from "../../knownRepos";
+import { rememberableStorage, rememberRepo, setActiveRepo, useKnownRepos } from "../../knownRepos";
+import { PathField } from "../../PathField";
+import { isMissingDirectory } from "../../storageErrors";
 import { useRepoStatusContext } from "../../repoStatus";
 import { STORAGE_TYPES } from "./storageTypes";
 
 type Mode = "create" | "connect";
 
-declare global {
-  interface Window {
-    /** Bridge provided by the KopiaUI desktop app (Electron). */
-    kopiaUI?: { selectDirectory(cb: (path: string) => void): void; browseDirectory(path: string): void };
-  }
-}
+/** Suggested repository locations (home-relative, resolved by the server). */
+const REPOSITORY_LOCATIONS = ["~/kopia-repository", "~"];
 
 const ECC_OVERHEAD = [
   { value: "0", label: "Disabled" },
@@ -69,15 +67,7 @@ function errorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-/**
- * The server has no error code for "directory does not exist": filesystem storage
- * reports an internal error such as "cannot access storage path: … cannot find the
- * file specified" (Windows) or "… no such file or directory" (Unix).
- */
-export function isMissingDirectory(err: unknown): boolean {
-  if (!(err instanceof ApiError)) return false;
-  return /cannot access storage path/i.test(err.message) && /cannot find the (file|path) specified|no such file or directory/i.test(err.message);
-}
+export { isMissingDirectory };
 
 interface AdvancedState {
   encryption: string | null;
@@ -88,7 +78,15 @@ interface AdvancedState {
   legacyFormat: boolean;
 }
 
-function AdvancedCreateOptions({ algorithms, value, onChange }: { algorithms?: Algorithms; value: AdvancedState; onChange: (v: AdvancedState) => void }) {
+function AdvancedCreateOptions({
+  algorithms,
+  value,
+  onChange,
+}: {
+  algorithms?: Algorithms;
+  value: AdvancedState;
+  onChange: (v: AdvancedState) => void;
+}) {
   const set = (patch: Partial<AdvancedState>) => onChange({ ...value, ...patch });
   return (
     <SimpleGrid cols={{ base: 1, sm: 2 }}>
@@ -145,6 +143,7 @@ export function SetupWizard() {
   const repoStatus = useRepoStatusContext();
   const algorithms = useApi((signal) => api.repo.algorithms({ signal }), []);
   const currentUser = useApi((signal) => api.currentUser({ signal }), []);
+  const { repos: knownRepos } = useKnownRepos();
 
   const [step, setStep] = useState(0);
   const [storageType, setStorageType] = useState("filesystem");
@@ -188,8 +187,19 @@ export function SetupWizard() {
     }
     setChecking(true);
     setError(null);
+    // Turn "~/backups" or other home-relative input into the absolute path the storage needs.
+    let resolvedPath = path.trim();
+    if (storageType === "filesystem") {
+      try {
+        const r = await api.sources.resolvePath(resolvedPath);
+        if (r?.source?.path) resolvedPath = r.source.path;
+      } catch {
+        // keep the path as typed; the exists check below reports real problems
+      }
+      setPath(resolvedPath);
+    }
     try {
-      await api.repo.exists({ storage });
+      await api.repo.exists({ storage: { type: storageType, config: { path: resolvedPath } } });
       setMode("connect");
       setFolderMissing(false);
       setStep(2);
@@ -212,7 +222,8 @@ export function SetupWizard() {
   };
 
   const passwordError = touched && !password ? "Enter a password" : undefined;
-  const confirmError = touched && mode === "create" && password !== confirmPassword ? "Passwords don't match" : undefined;
+  const confirmError =
+    touched && mode === "create" && password !== confirmPassword ? "Passwords don't match" : undefined;
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -251,13 +262,18 @@ export function SetupWizard() {
 
       const remembered = rememberableStorage(storage);
       if (remembered) {
-        rememberRepo({ storage: remembered, description, clientOptions: { username: effectiveUser, hostname: effectiveHost, readonly } });
+        rememberRepo({
+          storage: remembered,
+          description,
+          clientOptions: { username: effectiveUser, hostname: effectiveHost, readonly },
+        });
       }
       await repoStatus.refresh();
       notifications.show({
         color: "green",
         title: mode === "create" ? "Repository created" : "Connected",
-        message: mode === "create" ? `New repository in ${path.trim()}` : `Connected to the repository in ${path.trim()}`,
+        message:
+          mode === "create" ? `New repository in ${path.trim()}` : `Connected to the repository in ${path.trim()}`,
       });
       navigate("/snapshots");
     } catch (err) {
@@ -295,7 +311,10 @@ export function SetupWizard() {
                   >
                     <Card
                       padding="md"
-                      style={{ borderColor: storageType === t.id ? "var(--mantine-primary-color-filled)" : undefined, height: "100%" }}
+                      style={{
+                        borderColor: storageType === t.id ? "var(--mantine-primary-color-filled)" : undefined,
+                        height: "100%",
+                      }}
                     >
                       <Group wrap="nowrap" align="flex-start">
                         <ThemeIcon variant="light" size={36}>
@@ -337,25 +356,21 @@ export function SetupWizard() {
         <Stepper.Step label="Location" description="Directory path">
           <form onSubmit={checkLocation}>
             <Stack mt="md">
-              <Group align="flex-end" wrap="nowrap">
-                <TextInput
-                  label="Directory"
-                  description="An existing repository is detected automatically; an empty or new folder creates a new one."
-                  placeholder={navigator.platform.startsWith("Win") ? "e.g. D:\\Backups\\kopia" : "e.g. /mnt/backup/kopia"}
-                  value={path}
-                  onChange={(e) => setPath(e.currentTarget.value)}
-                  leftSection={<IconFolder size={16} />}
-                  style={{ flex: 1 }}
-                  required
-                  data-autofocus
-                  autoFocus
-                />
-                {window.kopiaUI && (
-                  <Button variant="default" leftSection={<IconFolderOpen size={16} />} onClick={() => window.kopiaUI?.selectDirectory((p) => p && setPath(p))}>
-                    Browse
-                  </Button>
-                )}
-              </Group>
+              <PathField
+                label="Directory"
+                description="An existing repository is detected automatically; an empty or new folder creates a new one."
+                placeholder={
+                  navigator.platform.startsWith("Win") ? "e.g. D:\\Backups\\kopia" : "e.g. /mnt/backup/kopia"
+                }
+                value={path}
+                onChange={setPath}
+                recent={knownRepos
+                  .filter((r) => r.storage.type === storageType)
+                  .map((r) => ({ path: r.storage.config.path, label: r.description }))}
+                locations={REPOSITORY_LOCATIONS}
+                required
+                autoFocus
+              />
               {errorAlert}
               <Group justify="space-between">
                 <Button variant="default" onClick={() => goTo(0)}>
@@ -376,8 +391,8 @@ export function SetupWizard() {
                 <Alert color="blue" icon={<IconInfoCircle />} title="A new repository will be created">
                   <Text size="sm">
                     in <b>{path.trim()}</b>
-                    {folderMissing ? " (the folder will be created)" : ""}. Choose a strong password – it encrypts your backups and{" "}
-                    <b>cannot be recovered</b> if lost.
+                    {folderMissing ? " (the folder will be created)" : ""}. Choose a strong password – it encrypts your
+                    backups and <b>cannot be recovered</b> if lost.
                   </Text>
                 </Alert>
               ) : (
@@ -411,20 +426,40 @@ export function SetupWizard() {
                 )}
               </SimpleGrid>
 
-              <TextInput label="Description" description="Shown in the header to tell repositories apart." value={description} onChange={(e) => setDescription(e.currentTarget.value)} />
+              <TextInput
+                label="Description"
+                description="Shown in the header to tell repositories apart."
+                value={description}
+                onChange={(e) => setDescription(e.currentTarget.value)}
+              />
 
               <Accordion variant="contained">
                 <Accordion.Item value="client">
                   <Accordion.Control>Identity of this computer</Accordion.Control>
                   <Accordion.Panel>
                     <SimpleGrid cols={{ base: 1, sm: 2 }}>
-                      <TextInput label="Username" value={effectiveUser} onChange={(e) => setUsername(e.currentTarget.value)} />
-                      <TextInput label="Hostname" value={effectiveHost} onChange={(e) => setHostname(e.currentTarget.value)} />
+                      <TextInput
+                        label="Username"
+                        value={effectiveUser}
+                        onChange={(e) => setUsername(e.currentTarget.value)}
+                      />
+                      <TextInput
+                        label="Hostname"
+                        value={effectiveHost}
+                        onChange={(e) => setHostname(e.currentTarget.value)}
+                      />
                     </SimpleGrid>
                     <Text size="xs" c="dimmed" mt="xs">
                       Snapshots made from here are owned by {effectiveUser || "user"}@{effectiveHost || "host"}.
                     </Text>
-                    {mode === "connect" && <Switch mt="md" label="Connect read-only" checked={readonly} onChange={(e) => setReadonly(e.currentTarget.checked)} />}
+                    {mode === "connect" && (
+                      <Switch
+                        mt="md"
+                        label="Connect read-only"
+                        checked={readonly}
+                        onChange={(e) => setReadonly(e.currentTarget.checked)}
+                      />
+                    )}
                   </Accordion.Panel>
                 </Accordion.Item>
                 {mode === "create" && (
@@ -440,8 +475,8 @@ export function SetupWizard() {
               {repoStatus.data?.connected && (
                 <Alert color="yellow" icon={<IconInfoCircle />}>
                   <Text size="sm">
-                    The server will disconnect from <b>{repoStatus.data.description || "the current repository"}</b> first – a Kopia server holds one
-                    repository at a time. You can switch back from the repository list.
+                    The server will disconnect from <b>{repoStatus.data.description || "the current repository"}</b>{" "}
+                    first – a Kopia server holds one repository at a time. You can switch back from the repository list.
                   </Text>
                 </Alert>
               )}
