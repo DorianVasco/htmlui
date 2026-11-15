@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import {
   ActionIcon,
   Badge,
+  Box,
   Button,
   Card,
   Group,
@@ -15,6 +16,7 @@ import {
   Text,
   TextInput,
   Tooltip,
+  UnstyledButton,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import {
@@ -73,6 +75,41 @@ function SourceStatus({ s }) {
     <Badge variant="light" color="green">
       Protected
     </Badge>
+  );
+}
+
+function SourceActions({ s, navigate }) {
+  return (
+    <Group gap={4} justify="flex-end" wrap="nowrap">
+      {s.status === "UPLOADING" ? (
+        <Tooltip label="Stop">
+          <ActionIcon variant="subtle" color="red" aria-label="Stop">
+            <IconPlayerStop size={18} />
+          </ActionIcon>
+        </Tooltip>
+      ) : (
+        <Tooltip label="Snapshot now">
+          <ActionIcon variant="subtle" aria-label="Snapshot now">
+            <IconPlayerPlay size={18} />
+          </ActionIcon>
+        </Tooltip>
+      )}
+      <Menu position="bottom-end" withinPortal>
+        <Menu.Target>
+          <ActionIcon variant="subtle" color="gray" aria-label="More">
+            <IconDots size={18} />
+          </ActionIcon>
+        </Menu.Target>
+        <Menu.Dropdown>
+          <Menu.Item leftSection={<IconHistory size={16} />} onClick={() => navigate({ page: "source", source: s })}>
+            Snapshot history
+          </Menu.Item>
+          <Menu.Item leftSection={<IconShieldCheck size={16} />} onClick={() => navigate({ page: "policies" })}>
+            Edit policy
+          </Menu.Item>
+        </Menu.Dropdown>
+      </Menu>
+    </Group>
   );
 }
 
@@ -137,7 +174,7 @@ export function SnapshotsPage({ navigate }) {
         }
       />
 
-      <SimpleGrid cols={{ base: 1, xs: 2, lg: 4 }} mb="lg">
+      <SimpleGrid cols={{ base: 2, lg: 4 }} spacing={{ base: "xs", sm: "md" }} mb="lg">
         <StatCard label="Sources" value={sources.length} hint={`${sources.filter((s) => s.lastSnapshot).length} with snapshots`} icon={IconArchive} />
         <StatCard label="Protected data" value={sizeDisplayName(totalSize)} hint={`Repository: ${sizeDisplayName(repoStatus.totalSize)}`} icon={IconDatabase} color="cyan" />
         <StatCard label="Next snapshot" value={relativeTime(upcoming?.nextSnapshotTime)} hint={upcoming?.source.path} icon={IconClockPlay} color="blue" />
@@ -157,7 +194,43 @@ export function SnapshotsPage({ navigate }) {
             ]}
           />
         </Group>
-        <Table.ScrollContainer minWidth={820}>
+        <Stack hiddenFrom="sm" gap={0}>
+          {visible.map((s) => (
+            <UnstyledButton
+              key={ownerName(s.source) + s.source.path}
+              onClick={() => navigate({ page: "source", source: s })}
+              px="md"
+              py="sm"
+              style={{ borderTop: "1px solid var(--mantine-color-default-border)" }}
+            >
+              <Group justify="space-between" wrap="nowrap" align="flex-start" gap="xs">
+                <Stack gap={6} style={{ minWidth: 0 }}>
+                  <Stack gap={0}>
+                    <Text size="sm" fw={600} style={{ wordBreak: "break-all" }}>
+                      {s.source.path}
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      {ownerName(s.source)} · {s.lastSnapshot ? relativeTime(s.lastSnapshot.startTime) + " · " + sizeDisplayName(s.lastSnapshot.totalSize) : "no snapshots"}
+                    </Text>
+                  </Stack>
+                  <Group gap={6}>
+                    <SourceStatus s={s} />
+                    <ErrorCount count={s.lastSnapshot?.errors} />
+                  </Group>
+                </Stack>
+                <Box onClick={(e) => e.stopPropagation()}>
+                  <SourceActions s={s} navigate={navigate} />
+                </Box>
+              </Group>
+            </UnstyledButton>
+          ))}
+          {visible.length === 0 && (
+            <Text ta="center" c="dimmed" py="lg">
+              No sources match.
+            </Text>
+          )}
+        </Stack>
+        <Table.ScrollContainer minWidth={820} visibleFrom="sm">
           <Table>
             <Table.Thead>
               <Table.Tr>
@@ -205,36 +278,7 @@ export function SnapshotsPage({ navigate }) {
                     </Text>
                   </Table.Td>
                   <Table.Td onClick={(e) => e.stopPropagation()}>
-                    <Group gap={4} justify="flex-end" wrap="nowrap">
-                      {s.status === "UPLOADING" ? (
-                        <Tooltip label="Stop">
-                          <ActionIcon variant="subtle" color="red" aria-label="Stop">
-                            <IconPlayerStop size={18} />
-                          </ActionIcon>
-                        </Tooltip>
-                      ) : (
-                        <Tooltip label="Snapshot now">
-                          <ActionIcon variant="subtle" aria-label="Snapshot now">
-                            <IconPlayerPlay size={18} />
-                          </ActionIcon>
-                        </Tooltip>
-                      )}
-                      <Menu position="bottom-end" withinPortal>
-                        <Menu.Target>
-                          <ActionIcon variant="subtle" color="gray" aria-label="More">
-                            <IconDots size={18} />
-                          </ActionIcon>
-                        </Menu.Target>
-                        <Menu.Dropdown>
-                          <Menu.Item leftSection={<IconHistory size={16} />} onClick={() => navigate({ page: "source", source: s })}>
-                            Snapshot history
-                          </Menu.Item>
-                          <Menu.Item leftSection={<IconShieldCheck size={16} />} onClick={() => navigate({ page: "policies" })}>
-                            Edit policy
-                          </Menu.Item>
-                        </Menu.Dropdown>
-                      </Menu>
-                    </Group>
+                    <SourceActions s={s} navigate={navigate} />
                   </Table.Td>
                 </Table.Tr>
               ))}

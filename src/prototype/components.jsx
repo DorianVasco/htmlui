@@ -26,7 +26,7 @@ export function StatCard({ label, value, hint, icon: Icon, color = "teal" }) {
           <Text size="xs" tt="uppercase" fw={600} c="dimmed">
             {label}
           </Text>
-          <Text fz={26} fw={700} lh={1.1}>
+          <Text fz={{ base: 20, sm: 26 }} fw={700} lh={1.1}>
             {value}
           </Text>
           {hint && (
@@ -36,7 +36,7 @@ export function StatCard({ label, value, hint, icon: Icon, color = "teal" }) {
           )}
         </Stack>
         {Icon && (
-          <ThemeIcon variant="light" color={color} size={38} radius="md">
+          <ThemeIcon variant="light" color={color} size={38} radius="md" visibleFrom="sm">
             <Icon size={20} />
           </ThemeIcon>
         )}

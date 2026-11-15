@@ -18,7 +18,6 @@ import {
   TextInput,
   Tooltip,
 } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
 import {
   IconDownload,
   IconFile,
@@ -99,9 +98,15 @@ function BrowseDrawer({ snapshot, onClose, onRestore }) {
   );
 }
 
-function RestoreModal({ opened, onClose, path }) {
+function RestoreModal({ snapshot, onClose, path }) {
   return (
-    <Modal opened={opened} onClose={onClose} title="Restore snapshot" centered size="lg">
+    <Modal
+      opened={!!snapshot}
+      onClose={onClose}
+      title={snapshot ? `Restore snapshot from ${new Date(snapshot.startTime).toLocaleString()}` : ""}
+      centered
+      size="lg"
+    >
       <Stack>
         <TextInput label="Restore to" defaultValue={path + " (restored)"} leftSection={<IconFolder size={16} />} />
         <SimpleGrid cols={{ base: 1, xs: 2 }}>
@@ -127,7 +132,7 @@ export function SourceDetailPage({ source, navigate }) {
   const snapshots = snapshotsFor(source);
   const [selected, setSelected] = useState([]);
   const [browsing, setBrowsing] = useState(null);
-  const [restoreOpened, restore] = useDisclosure(false);
+  const [restoring, setRestoring] = useState(null);
 
   const toggle = (id) => setSelected((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
 
@@ -208,7 +213,7 @@ export function SourceDetailPage({ source, navigate }) {
                   <Table.Td>
                     <Group gap={4}>
                       {s.retention.map((r) => (
-                        <Badge key={r} size="xs" variant="light" color={retentionColor(r)}>
+                        <Badge key={r} size="xs" variant="light" tt="none" color={retentionColor(r)}>
                           {r}
                         </Badge>
                       ))}
@@ -232,7 +237,7 @@ export function SourceDetailPage({ source, navigate }) {
                         </ActionIcon>
                       </Tooltip>
                       <Tooltip label="Restore">
-                        <ActionIcon variant="subtle" aria-label="Restore" onClick={restore.open}>
+                        <ActionIcon variant="subtle" aria-label="Restore" onClick={() => setRestoring(s)}>
                           <IconRestore size={18} />
                         </ActionIcon>
                       </Tooltip>
@@ -258,11 +263,11 @@ export function SourceDetailPage({ source, navigate }) {
         snapshot={browsing}
         onClose={() => setBrowsing(null)}
         onRestore={() => {
+          setRestoring(browsing);
           setBrowsing(null);
-          restore.open();
         }}
       />
-      <RestoreModal opened={restoreOpened} onClose={restore.close} path={source.source.path} />
+      <RestoreModal snapshot={restoring} onClose={() => setRestoring(null)} path={source.source.path} />
     </>
   );
 }
