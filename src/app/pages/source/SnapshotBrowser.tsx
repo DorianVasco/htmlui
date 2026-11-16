@@ -34,6 +34,7 @@ import { api, useDirectory, useMount } from "../../../api";
 import type { DirEntry, Snapshot } from "../../../api";
 import { absoluteTime, sizeDisplayName } from "../../format";
 import { usePreferences } from "../../preferences";
+import { CliEquivalent } from "../../cli";
 
 export const isDirectory = (e: DirEntry) => e.type === "d";
 
@@ -274,6 +275,7 @@ function BrowserContent({
           </Table>
         </Table.ScrollContainer>
       )}
+      <CliEquivalent command={`ls -l ${current}`} />
     </Stack>
   );
 }

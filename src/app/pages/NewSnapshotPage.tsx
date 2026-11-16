@@ -18,6 +18,7 @@ import { ownerName, relativeTime, sizeDisplayName } from "../format";
 import { policyEditorPath } from "./policies/policyModel";
 import { usePreferences } from "../preferences";
 import { PathField } from "../PathField";
+import { CliEquivalent, q } from "../cli";
 
 /** Suggested folders to back up (home-relative, resolved by the server). */
 const SOURCE_LOCATIONS = ["~", "~/Documents", "~/Desktop", "~/Pictures", "~/Music", "~/Videos", "~/Downloads"];
@@ -398,6 +399,7 @@ export function NewSnapshotPage() {
 
         {source && !pathChanging && preview.data && <PolicyPreview resolved={preview.data} source={source} />}
         {policyDef.error && <Alert color="red">{policyDef.error.message}</Alert>}
+        {source && <CliEquivalent command={`snapshot create ${q(source.path)}`} />}
       </Stack>
     </>
   );

@@ -8,6 +8,7 @@ import type { RepoStatus } from "../../../api";
 import { PageHeader } from "../../components";
 import { useRepoStatusContext } from "../../repoStatus";
 import { setActiveRepo, updateRepo } from "../../knownRepos";
+import { CliEquivalent } from "../../cli";
 
 function showError(title: string, err: unknown) {
   notifications.show({ color: "red", title, message: err instanceof Error ? err.message : String(err) });
@@ -86,8 +87,19 @@ export function ConnectedRepository({ status, currentId }: { status: RepoStatus;
               </Badge>
               {status.readonly && <Badge color="yellow">Read-only</Badge>}
             </Group>
-            <TextInput label="Description" value={description} onChange={(e) => setDescription(e.currentTarget.value)} w="100%" />
-            <Button size="xs" variant="default" loading={savingDescription} disabled={description === (status.description ?? "")} onClick={() => void saveDescription()}>
+            <TextInput
+              label="Description"
+              value={description}
+              onChange={(e) => setDescription(e.currentTarget.value)}
+              w="100%"
+            />
+            <Button
+              size="xs"
+              variant="default"
+              loading={savingDescription}
+              disabled={description === (status.description ?? "")}
+              onClick={() => void saveDescription()}
+            >
               Save description
             </Button>
           </Stack>
@@ -113,12 +125,13 @@ export function ConnectedRepository({ status, currentId }: { status: RepoStatus;
           </Table>
         </Card>
       </SimpleGrid>
+      <CliEquivalent command="repository status" />
 
       <Modal opened={confirmOpened} onClose={confirm.close} title="Disconnect from repository?" centered>
         <Stack>
           <Text size="sm">
-            This computer stops making snapshots until it is connected again. The repository and its snapshots are <b>not</b> deleted, and it stays
-            in your repository list.
+            This computer stops making snapshots until it is connected again. The repository and its snapshots are{" "}
+            <b>not</b> deleted, and it stays in your repository list.
           </Text>
           <Group justify="flex-end">
             <Button variant="default" onClick={confirm.close}>

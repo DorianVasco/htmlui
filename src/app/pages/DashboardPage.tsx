@@ -59,6 +59,7 @@ import {
   totalSize,
   uploadProgress,
 } from "../sourceStatus";
+import { CliEquivalent } from "../cli";
 
 const sourceKey = (s: SourceInfo) => ownerName(s) + ":" + s.path;
 
@@ -566,6 +567,7 @@ export function DashboardPage() {
           </>
         )}
       </Card>
+      <CliEquivalent command="snapshot list" />
     </>
   );
 }

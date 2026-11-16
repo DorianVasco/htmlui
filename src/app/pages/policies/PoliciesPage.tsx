@@ -30,6 +30,7 @@ import {
   policyKind,
   targetLabel,
 } from "./policyModel";
+import { CliEquivalent } from "../../cli";
 
 type Scope = "local" | "all";
 
@@ -250,6 +251,7 @@ export function PoliciesPage() {
           </Table.ScrollContainer>
         </Card>
       )}
+      <CliEquivalent command="policy list" />
 
       <NewPolicyModal opened={creating} onClose={() => setCreating(false)} local={local} />
       <PolicyEditorDrawer

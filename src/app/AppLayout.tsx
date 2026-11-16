@@ -66,11 +66,14 @@ function AppNavLink({
   to,
   icon: Icon,
   onClick,
+  badge,
 }: {
   label: string;
   to: string;
   icon: typeof IconArchive;
   onClick: () => void;
+  /** Count shown at the right, e.g. running tasks. */
+  badge?: number;
 }) {
   return (
     <NavLink
@@ -78,6 +81,13 @@ function AppNavLink({
       to={to}
       label={label}
       leftSection={<Icon size={18} stroke={1.6} />}
+      rightSection={
+        badge ? (
+          <Badge size="xs" circle aria-label={`${badge} running`}>
+            {badge}
+          </Badge>
+        ) : null
+      }
       onClick={onClick}
       variant="light"
       style={navLinkStyle}
@@ -241,7 +251,7 @@ export function AppLayout() {
         <AppShell.Section grow component={ScrollArea}>
           <AppNavLink label="Snapshots" to="/snapshots" icon={IconArchive} onClick={close} />
           <AppNavLink label="Policies" to="/policies" icon={IconShieldCheck} onClick={close} />
-          <AppNavLink label="Tasks" to="/tasks" icon={IconListCheck} onClick={close} />
+          <AppNavLink label="Tasks" to="/tasks" icon={IconListCheck} onClick={close} badge={runningCount} />
           <AppNavLink label="Repository" to="/repo" icon={IconDatabase} onClick={close} />
           <AppNavLink label="Preferences" to="/preferences" icon={IconSettings} onClick={close} />
         </AppShell.Section>

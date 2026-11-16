@@ -47,6 +47,7 @@ import {
   TimesOfDayField,
 } from "./PolicyFields";
 import { cleanPolicy, KIND_INFO, Policy, policyKind, setPath, targetLabel } from "./policyModel";
+import { CliEquivalent, cliPolicyTarget } from "../../cli";
 
 const INTERVALS = [
   [600, "every 10 minutes"],
@@ -489,6 +490,7 @@ function EditorForm({
           </ScrollArea>
         </Tabs>
 
+        <CliEquivalent command={`policy show ${cliPolicyTarget(target)}`} />
         <Group justify="space-between" pt="sm" style={{ borderTop: "1px solid var(--mantine-color-default-border)" }}>
           {!isNew && kind !== "global" ? (
             <Button variant="subtle" color="red" onClick={() => setConfirmDelete(true)} disabled={!!busy}>

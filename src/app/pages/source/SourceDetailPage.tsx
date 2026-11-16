@@ -48,6 +48,7 @@ import { isActive } from "../../sourceStatus";
 import { RestoreModal, RestoreTarget } from "./RestoreModal";
 import { SnapshotBrowser } from "./SnapshotBrowser";
 import { SnapshotEdit, SnapshotEditModal } from "./SnapshotEditModal";
+import { CliEquivalent, q } from "../../cli";
 
 /** Route path of this page, relative to the app's basename. */
 export function sourceDetailPath(src: SourceInfo): string {
@@ -503,6 +504,9 @@ export function SourceDetailPage() {
           </Table.ScrollContainer>
         )}
       </Card>
+      <CliEquivalent
+        command={`snapshot list ${q(`${userName}@${host}:${path}`)}${showHidden ? " --show-identical" : ""}`}
+      />
 
       <SnapshotBrowser
         snapshot={browsing}

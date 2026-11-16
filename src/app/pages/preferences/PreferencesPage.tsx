@@ -7,6 +7,7 @@ import { PageHeader } from "../../components";
 import { sizeDisplayName } from "../../format";
 import { usePreferences } from "../../preferences";
 import { useRepoStatusContext } from "../../repoStatus";
+import { setShowCli, useShowCli } from "../../cli";
 import { NotificationProfiles } from "./NotificationProfiles";
 
 function Row({ label, hint, children }: { label: string; hint?: ReactNode; children: ReactNode }) {
@@ -30,6 +31,7 @@ function Row({ label, hint, children }: { label: string; hint?: ReactNode; child
 export function PreferencesPage() {
   const { colorScheme, setColorScheme } = useMantineColorScheme();
   const prefs = usePreferences();
+  const showCli = useShowCli();
   const connected = !!useRepoStatusContext().data?.connected;
   const [saving, setSaving] = useState(false);
 
@@ -94,6 +96,16 @@ export function PreferencesPage() {
               onChange={(e) => void save({ defaultSnapshotViewAll: e.currentTarget.checked })}
               disabled={!prefs.loaded || saving}
               aria-label="Show all users' snapshots"
+            />
+          </Row>
+          <Row
+            label="Show CLI equivalents"
+            hint="Show the kopia command line for what a page does. Stored in this browser."
+          >
+            <Switch
+              checked={showCli}
+              onChange={(e) => setShowCli(e.currentTarget.checked)}
+              aria-label="Show CLI equivalents"
             />
           </Row>
         </Card>
