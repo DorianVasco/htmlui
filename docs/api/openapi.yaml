@@ -1,0 +1,2008 @@
+openapi: 3.1.0
+info:
+  title: Kopia Server REST API
+  version: "1.0.0-draft"
+  summary: HTTP API exposed by `kopia server start`, used by the HTML UI, KopiaUI and native clients.
+  description: |
+    Describes the JSON API under `/api/v1` that `kopia server` serves to UI clients
+    (the HTML UI in this repository, KopiaUI, and the planned native Windows/macOS clients).
+
+    **Provenance.** Request and response shapes were taken from the Go sources of
+    `kopia/kopia` (commit `b6272a4e`, 2026-11-14): route table in
+    `internal/server/server.go`, DTOs in `internal/serverapi/serverapi.go` and the
+    structs they embed (`snapshot/policy`, `snapshot`, `fs`, `internal/uitask`,
+    `snapshot/restore`, `repo`, `notification`, `repo/blob/<provider>`). Every schema
+    is marked `x-source: server`. Fields that Go encodes as `null` (pointers and slices
+    without `omitempty`) are declared nullable.
+
+    **Not a versioned contract.** Kopia does not publish or version this API. Re-check
+    this file against the server source when upgrading the bundled `kopia` binary
+    (see `docs/api/README.md`, "Keeping this spec current").
+
+    Read `docs/api/README.md` first. It covers authentication, the CSRF session
+    handshake, error handling, polling cadences and encoding quirks that OpenAPI
+    cannot express well.
+  license:
+    name: Apache-2.0
+    identifier: Apache-2.0
+
+servers:
+  - url: https://127.0.0.1:{port}
+    description: Local server started by KopiaUI or a native client (`--address=127.0.0.1:0`, self-signed TLS).
+    variables:
+      port:
+        default: "51515"
+        description: Random port, read from the `SERVER ADDRESS:` line the server prints on stderr.
+  - url: http://localhost:51515
+    description: Development server (`--insecure --without-password`).
+
+security:
+  - uiUser: []
+    csrfToken: []
+
+tags:
+  - name: Repository
+  - name: Sources
+  - name: Snapshots
+  - name: Objects
+  - name: Restore
+  - name: Mounts
+  - name: Policies
+  - name: Tasks
+  - name: Notifications
+  - name: Preferences
+  - name: Misc
+  - name: Control
+    description: |
+      Server control API for the process that launched the server (KopiaUI / native host).
+      Authenticated as the server-control user (default `server-control`), no CSRF token.
+      Not used by the HTML UI.
+
+paths:
+  # ------------------------------------------------------------------ repository
+  /api/v1/repo/status:
+    get:
+      tags: [Repository]
+      operationId: getRepoStatus
+      summary: Repository connection status
+      description: |
+        Works while disconnected. When `connected` is false and `initTaskID` is set,
+        the server is still opening the repository: poll this endpoint (or the task)
+        until it finishes.
+      responses:
+        "200":
+          description: Status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RepoStatus" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /api/v1/repo/algorithms:
+    get:
+      tags: [Repository]
+      operationId: getRepoAlgorithms
+      summary: Algorithms supported for creating a repository
+      responses:
+        "200":
+          description: Supported algorithms and defaults
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupportedAlgorithms" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /api/v1/repo/exists:
+    post:
+      tags: [Repository]
+      operationId: checkRepoExists
+      summary: Check whether a repository exists in the given storage
+      description: |
+        Returns `{}` if a repository exists. Fails with `400 NOT_INITIALIZED` if the
+        storage is reachable but empty, and `400 STORAGE_CONNECTION` if it is unreachable.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CheckRepositoryExistsRequest" }
+      responses:
+        "200": { $ref: "#/components/responses/Empty" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /api/v1/repo/create:
+    post:
+      tags: [Repository]
+      operationId: createRepo
+      summary: Create a repository in storage and connect to it
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateRepositoryRequest" }
+      responses:
+        "200":
+          description: Status after connecting (may still carry `initTaskID`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RepoStatus" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /api/v1/repo/connect:
+    post:
+      tags: [Repository]
+      operationId: connectRepo
+      summary: Connect to an existing repository
+      description: |
+        Connect runs as a task. The server waits up to `syncWaitTime` seconds
+        (server default if 0) for it. If the task has not finished, the response has
+        `connected: false` and `initTaskID`, and the client polls `repo/status`.
+        Fails with `400 ALREADY_CONNECTED`, `INVALID_PASSWORD`, `INVALID_TOKEN`,
+        `NOT_INITIALIZED` or `STORAGE_CONNECTION`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ConnectRepositoryRequest" }
+      responses:
+        "200":
+          description: Status after connecting
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RepoStatus" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /api/v1/repo/disconnect:
+    post:
+      tags: [Repository]
+      operationId: disconnectRepo
+      summary: Disconnect from the repository
+      requestBody: { $ref: "#/components/requestBodies/Empty" }
+      responses:
+        "200": { $ref: "#/components/responses/Empty" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /api/v1/repo/description:
+    post:
+      tags: [Repository]
+      operationId: setRepoDescription
+      summary: Change the repository's display description
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [description]
+              properties:
+                description: { type: string }
+      responses:
+        "200":
+          description: Updated status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RepoStatus" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /api/v1/repo/sync:
+    post:
+      tags: [Repository]
+      operationId: syncRepo
+      summary: Re-read manifests from storage (picks up snapshots written by other clients)
+      requestBody: { $ref: "#/components/requestBodies/Empty" }
+      responses:
+        "200": { $ref: "#/components/responses/Empty" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /api/v1/refresh:
+    post:
+      tags: [Repository]
+      operationId: refresh
+      summary: Alias of `repo/sync`
+      requestBody: { $ref: "#/components/requestBodies/Empty" }
+      responses:
+        "200": { $ref: "#/components/responses/Empty" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /api/v1/repo/throttle:
+    get:
+      tags: [Repository]
+      operationId: getThrottle
+      summary: Current storage throttling limits
+      description: Fails with `400 STORAGE_CONNECTION` for repositories reached through a Kopia repository server.
+      responses:
+        "200":
+          description: Limits
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ThrottlingLimits" }
+        default: { $ref: "#/components/responses/Error" }
+    put:
+      tags: [Repository]
+      operationId: setThrottle
+      summary: Set storage throttling limits
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ThrottlingLimits" }
+      responses:
+        "200": { $ref: "#/components/responses/Empty" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /api/v1/current-user:
+    get:
+      tags: [Misc]
+      operationId: getCurrentUser
+      summary: User and host name the server snapshots as
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CurrentUser" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /api/v1/cli:
+    get:
+      tags: [Misc]
+      operationId: getCliInfo
+      summary: Path of the kopia executable (for "CLI equivalent" hints)
+      responses:
+        "200":
+          description: CLI info
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CliInfo" }
+        default: { $ref: "#/components/responses/Error" }
+
+  # ------------------------------------------------------------------ sources
+  /api/v1/sources:
+    get:
+      tags: [Sources]
+      operationId: listSources
+      summary: Snapshot sources with live upload status
+      parameters:
+        - $ref: "#/components/parameters/FilterUserName"
+        - $ref: "#/components/parameters/FilterHost"
+        - $ref: "#/components/parameters/FilterPath"
+      responses:
+        "200":
+          description: Sources, sorted by `user@host:path`
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SourcesResponse" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      tags: [Sources]
+      operationId: createSource
+      summary: Add a folder as a snapshot source (sets its policy, optionally starts a snapshot)
+      description: |
+        The source is created for the server's own user and host. `policy` is required
+        (send `{}` for "inherit everything"). Fails with `400 PATH_NOT_FOUND` if the
+        path does not exist on the server's machine.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateSnapshotSourceRequest" }
+      responses:
+        "200":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CreateSnapshotSourceResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /api/v1/sources/upload:
+    post:
+      tags: [Sources]
+      operationId: startSnapshot
+      summary: Start a snapshot now for every local source matching the filter
+      description: |
+        Empty filter parameters match everything, so omitting all three starts all
+        local sources. Returns `404 NOT_FOUND` if no source matched.
+      parameters:
+        - $ref: "#/components/parameters/FilterUserName"
+        - $ref: "#/components/parameters/FilterHost"
+        - $ref: "#/components/parameters/FilterPath"
+      requestBody: { $ref: "#/components/requestBodies/Empty" }
+      responses:
+        "200":
+          description: Per-source result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MultipleSourceActionResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /api/v1/sources/cancel:
+    post:
+      tags: [Sources]
+      operationId: cancelSnapshot
+      summary: Cancel running snapshots of matching sources
+      parameters:
+        - $ref: "#/components/parameters/FilterUserName"
+        - $ref: "#/components/parameters/FilterHost"
+        - $ref: "#/components/parameters/FilterPath"
+      requestBody: { $ref: "#/components/requestBodies/Empty" }
+      responses:
+        "200":
+          description: Per-source result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MultipleSourceActionResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /api/v1/paths/resolve:
+    post:
+      tags: [Sources]
+      operationId: resolvePath
+      summary: Turn a user-typed path into a canonical source (expands `~`, cleans separators)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [path]
+              properties:
+                path: { type: string }
+      responses:
+        "200":
+          description: Resolved source
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ResolvePathResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /api/v1/estimate:
+    post:
+      tags: [Sources]
+      operationId: startEstimate
+      summary: Start a task estimating snapshot size of a local directory
+      description: Returns the task immediately. Poll `tasks/{taskID}`; the result is in its counters and logs.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EstimateRequest" }
+      responses:
+        "200":
+          description: Started task
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Task" }
+        default: { $ref: "#/components/responses/Error" }
+
+  # ------------------------------------------------------------------ snapshots
+  /api/v1/snapshots:
+    get:
+      tags: [Snapshots]
+      operationId: listSnapshots
+      summary: Snapshot history of one source, newest first
+      description: |
+        Without `all`, snapshots with identical root objects are collapsed into one
+        entry whose `retention` and `pins` are merged.
+      parameters:
+        - { name: userName, in: query, required: true, schema: { type: string } }
+        - { name: host, in: query, required: true, schema: { type: string } }
+        - { name: path, in: query, required: true, schema: { type: string } }
+        - name: all
+          in: query
+          description: Any non-empty value (the UI sends `1`) returns every snapshot.
+          schema: { type: string }
+      responses:
+        "200":
+          description: Snapshots
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SnapshotsResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /api/v1/snapshots/delete:
+    post:
+      tags: [Snapshots]
+      operationId: deleteSnapshots
+      summary: Delete snapshots, or a whole source together with its policy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DeleteSnapshotsRequest" }
+      responses:
+        "200": { $ref: "#/components/responses/Empty" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /api/v1/snapshots/edit:
+    post:
+      tags: [Snapshots]
+      operationId: editSnapshots
+      summary: Change description and/or pins of snapshots
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EditSnapshotsRequest" }
+      responses:
+        "200":
+          description: The edited snapshots
+          content:
+            application/json:
+              schema:
+                type: [array, "null"]
+                items: { $ref: "#/components/schemas/Snapshot" }
+        default: { $ref: "#/components/responses/Error" }
+
+  # ------------------------------------------------------------------ objects
+  /api/v1/objects/{objectID}:
+    get:
+      tags: [Objects]
+      operationId: getObject
+      summary: Directory listing (JSON) or raw file content
+      description: |
+        For a directory object ID (prefix `k`) the body is a `DirectoryManifest`.
+        For a file it is the raw bytes, with HTTP range support. **No CSRF token is
+        required** here so the URL works as a plain download link; basic auth still applies.
+        Errors on this endpoint are plain text, not the JSON error envelope.
+      security:
+        - uiUser: []
+      parameters:
+        - { name: objectID, in: path, required: true, schema: { $ref: "#/components/schemas/ObjectID" } }
+        - name: fname
+          in: query
+          description: If set, adds `Content-Disposition attachment; filename="<fname>"`.
+          schema: { type: string }
+        - name: mtime
+          in: query
+          description: RFC 3339 timestamp used as `Last-Modified`.
+          schema: { type: string, format: date-time }
+        - name: Range
+          in: header
+          schema: { type: string }
+      responses:
+        "200":
+          description: Directory manifest or file bytes
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DirectoryManifest" }
+            application/octet-stream:
+              schema: { type: string, contentMediaType: application/octet-stream }
+        "206":
+          description: Partial file content
+          content:
+            application/octet-stream:
+              schema: { type: string, contentMediaType: application/octet-stream }
+        "400": { description: "Invalid object ID (plain text)" }
+        "404": { description: "Object not found (plain text)" }
+
+  # ------------------------------------------------------------------ restore
+  /api/v1/restore:
+    post:
+      tags: [Restore]
+      operationId: startRestore
+      summary: Start a restore task to a folder, ZIP or TAR on the server's machine
+      description: |
+        Exactly one of `fsOutput`, `zipFile`, `tarFile` must be set, otherwise
+        `400 MALFORMED_REQUEST "output not specified"`. Returns the started task.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RestoreRequest" }
+      responses:
+        "200":
+          description: Started task
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Task" }
+        default: { $ref: "#/components/responses/Error" }
+
+  # ------------------------------------------------------------------ mounts
+  /api/v1/mounts:
+    get:
+      tags: [Mounts]
+      operationId: listMounts
+      summary: Snapshots currently mounted as a local file system
+      responses:
+        "200":
+          description: Mounts
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MountedSnapshots" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      tags: [Mounts]
+      operationId: mountSnapshot
+      summary: Mount a snapshot directory locally (on Windows a WebDAV share mapped to a drive letter with `net use`)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [root]
+              properties:
+                root: { $ref: "#/components/schemas/ObjectID" }
+      responses:
+        "200":
+          description: Mounted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MountedSnapshot" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /api/v1/mounts/{rootObjectID}:
+    parameters:
+      - { name: rootObjectID, in: path, required: true, schema: { $ref: "#/components/schemas/ObjectID" } }
+    get:
+      tags: [Mounts]
+      operationId: getMount
+      summary: Mount state of a directory
+      description: '`404 NOT_FOUND` when not mounted. Clients treat that as "not mounted", not as a failure.'
+      responses:
+        "200":
+          description: Mounted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MountedSnapshot" }
+        default: { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [Mounts]
+      operationId: unmountSnapshot
+      summary: Unmount
+      responses:
+        "200": { $ref: "#/components/responses/Empty" }
+        default: { $ref: "#/components/responses/Error" }
+
+  # ------------------------------------------------------------------ policies
+  /api/v1/policies:
+    get:
+      tags: [Policies]
+      operationId: listPolicies
+      summary: All defined policies
+      parameters:
+        - $ref: "#/components/parameters/FilterUserName"
+        - $ref: "#/components/parameters/FilterHost"
+        - $ref: "#/components/parameters/FilterPath"
+      responses:
+        "200":
+          description: Policies
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PoliciesResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /api/v1/policy:
+    parameters:
+      - $ref: "#/components/parameters/TargetUserName"
+      - $ref: "#/components/parameters/TargetHost"
+      - $ref: "#/components/parameters/TargetPath"
+    get:
+      tags: [Policies]
+      operationId: getPolicy
+      summary: The policy defined exactly at this target (not the effective one)
+      description: "`400 NOT_FOUND` (status 400, not 404) if no policy is defined at the target."
+      responses:
+        "200":
+          description: Policy
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Policy" }
+        default: { $ref: "#/components/responses/Error" }
+    put:
+      tags: [Policies]
+      operationId: setPolicy
+      summary: Create or replace the policy at this target
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Policy" }
+      responses:
+        "200": { $ref: "#/components/responses/Empty" }
+        default: { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [Policies]
+      operationId: deletePolicy
+      summary: Delete the policy at this target
+      responses:
+        "200": { $ref: "#/components/responses/Empty" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /api/v1/policy/resolve:
+    post:
+      tags: [Policies]
+      operationId: resolvePolicy
+      summary: Preview the effective policy if `updates` were saved at this target
+      parameters:
+        - $ref: "#/components/parameters/TargetUserName"
+        - $ref: "#/components/parameters/TargetHost"
+        - $ref: "#/components/parameters/TargetPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ResolvePolicyRequest" }
+      responses:
+        "200":
+          description: Effective policy, where each value comes from, upcoming snapshot times
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ResolvePolicyResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  # ------------------------------------------------------------------ tasks
+  /api/v1/tasks:
+    get:
+      tags: [Tasks]
+      operationId: listTasks
+      summary: Running and recently finished tasks
+      responses:
+        "200":
+          description: Tasks
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TasksResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /api/v1/tasks-summary:
+    get:
+      tags: [Tasks]
+      operationId: getTasksSummary
+      summary: Number of tasks per status
+      responses:
+        "200":
+          description: Counts, e.g. `{"RUNNING":1,"SUCCESS":12}`. `RUNNING` is always present.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TasksSummary" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /api/v1/tasks/{taskID}:
+    get:
+      tags: [Tasks]
+      operationId: getTask
+      summary: One task
+      parameters:
+        - { name: taskID, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Task
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Task" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /api/v1/tasks/{taskID}/logs:
+    get:
+      tags: [Tasks]
+      operationId: getTaskLogs
+      summary: Log lines of a task (bounded ring buffer; old lines are dropped)
+      parameters:
+        - { name: taskID, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Logs
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaskLogsResponse" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /api/v1/tasks/{taskID}/cancel:
+    post:
+      tags: [Tasks]
+      operationId: cancelTask
+      summary: Request cancellation (status goes RUNNING → CANCELING → CANCELED)
+      parameters:
+        - { name: taskID, in: path, required: true, schema: { type: string } }
+      requestBody: { $ref: "#/components/requestBodies/Empty" }
+      responses:
+        "200": { $ref: "#/components/responses/Empty" }
+        default: { $ref: "#/components/responses/Error" }
+
+  # ------------------------------------------------------------------ notifications
+  /api/v1/notificationProfiles:
+    get:
+      tags: [Notifications]
+      operationId: listNotificationProfiles
+      summary: All notification profiles
+      responses:
+        "200":
+          description: Profiles
+          content:
+            application/json:
+              schema:
+                type: [array, "null"]
+                description: "`null` when no profiles exist."
+                items: { $ref: "#/components/schemas/NotificationProfile" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      tags: [Notifications]
+      operationId: saveNotificationProfile
+      summary: Create or replace the profile with this `profile` name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NotificationProfile" }
+      responses:
+        "200": { $ref: "#/components/responses/Empty" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /api/v1/notificationProfiles/{profileName}:
+    parameters:
+      - { name: profileName, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [Notifications]
+      operationId: getNotificationProfile
+      summary: One profile
+      responses:
+        "200":
+          description: Profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NotificationProfile" }
+        default: { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [Notifications]
+      operationId: deleteNotificationProfile
+      summary: Delete a profile
+      responses:
+        "200": { $ref: "#/components/responses/Empty" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /api/v1/testNotificationProfile:
+    post:
+      tags: [Notifications]
+      operationId: testNotificationProfile
+      summary: Send a test notification using an unsaved profile
+      description: Sender errors (bad SMTP credentials etc.) come back as `400 MALFORMED_REQUEST` with the reason in `error`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NotificationProfile" }
+      responses:
+        "200": { $ref: "#/components/responses/Empty" }
+        default: { $ref: "#/components/responses/Error" }
+
+  # ------------------------------------------------------------------ preferences
+  /api/v1/ui-preferences:
+    get:
+      tags: [Preferences]
+      operationId: getUIPreferences
+      summary: UI preferences stored by the server (shared by all UI clients)
+      responses:
+        "200":
+          description: Preferences
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UIPreferences" }
+        default: { $ref: "#/components/responses/Error" }
+    put:
+      tags: [Preferences]
+      operationId: setUIPreferences
+      summary: Replace UI preferences
+      description: |
+        The server decodes into a fixed struct and writes it back, so **unknown fields
+        are dropped**. Native-client-only settings must be stored locally.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UIPreferences" }
+      responses:
+        "200": { $ref: "#/components/responses/Empty" }
+        default: { $ref: "#/components/responses/Error" }
+
+  # ------------------------------------------------------------------ control API
+  /api/v1/control/status:
+    get:
+      tags: [Control]
+      operationId: controlStatus
+      summary: Same body as `repo/status`; KopiaUI polls it for the tray status
+      security: [{ serverControlUser: [] }]
+      responses:
+        "200":
+          description: Status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RepoStatus" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/v1/control/sources:
+    get:
+      tags: [Control]
+      operationId: controlSources
+      summary: Same as `GET sources`
+      security: [{ serverControlUser: [] }]
+      parameters:
+        - $ref: "#/components/parameters/FilterUserName"
+        - $ref: "#/components/parameters/FilterHost"
+        - $ref: "#/components/parameters/FilterPath"
+      responses:
+        "200":
+          description: Sources
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SourcesResponse" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/v1/control/trigger-snapshot:
+    post:
+      tags: [Control]
+      operationId: controlTriggerSnapshot
+      summary: Same as `sources/upload`
+      security: [{ serverControlUser: [] }]
+      parameters:
+        - $ref: "#/components/parameters/FilterUserName"
+        - $ref: "#/components/parameters/FilterHost"
+        - $ref: "#/components/parameters/FilterPath"
+      responses:
+        "200":
+          description: Per-source result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MultipleSourceActionResponse" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/v1/control/cancel-snapshot:
+    post:
+      tags: [Control]
+      operationId: controlCancelSnapshot
+      summary: Same as `sources/cancel`
+      security: [{ serverControlUser: [] }]
+      parameters:
+        - $ref: "#/components/parameters/FilterUserName"
+        - $ref: "#/components/parameters/FilterHost"
+        - $ref: "#/components/parameters/FilterPath"
+      responses:
+        "200":
+          description: Per-source result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MultipleSourceActionResponse" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/v1/control/pause-source:
+    post:
+      tags: [Control]
+      operationId: controlPauseSource
+      summary: Pause scheduled snapshots of matching sources (status becomes PAUSED)
+      security: [{ serverControlUser: [] }]
+      parameters:
+        - $ref: "#/components/parameters/FilterUserName"
+        - $ref: "#/components/parameters/FilterHost"
+        - $ref: "#/components/parameters/FilterPath"
+      responses:
+        "200":
+          description: Per-source result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MultipleSourceActionResponse" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/v1/control/resume-source:
+    post:
+      tags: [Control]
+      operationId: controlResumeSource
+      summary: Resume scheduled snapshots of matching sources
+      security: [{ serverControlUser: [] }]
+      parameters:
+        - $ref: "#/components/parameters/FilterUserName"
+        - $ref: "#/components/parameters/FilterHost"
+        - $ref: "#/components/parameters/FilterPath"
+      responses:
+        "200":
+          description: Per-source result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MultipleSourceActionResponse" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/v1/control/flush:
+    post:
+      tags: [Control]
+      operationId: controlFlush
+      summary: Flush pending repository writes
+      security: [{ serverControlUser: [] }]
+      responses:
+        "200": { $ref: "#/components/responses/Empty" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/v1/control/refresh:
+    post:
+      tags: [Control]
+      operationId: controlRefresh
+      summary: Same as `repo/sync`
+      security: [{ serverControlUser: [] }]
+      responses:
+        "200": { $ref: "#/components/responses/Empty" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/v1/control/shutdown:
+    post:
+      tags: [Control]
+      operationId: controlShutdown
+      summary: Shut the server down gracefully
+      security: [{ serverControlUser: [] }]
+      responses:
+        "200": { $ref: "#/components/responses/Empty" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/v1/control/throttle:
+    get:
+      tags: [Control]
+      operationId: controlGetThrottle
+      summary: Same as `GET repo/throttle`
+      security: [{ serverControlUser: [] }]
+      responses:
+        "200":
+          description: Limits
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ThrottlingLimits" }
+        default: { $ref: "#/components/responses/Error" }
+    put:
+      tags: [Control]
+      operationId: controlSetThrottle
+      summary: Same as `PUT repo/throttle`
+      security: [{ serverControlUser: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ThrottlingLimits" }
+      responses:
+        "200": { $ref: "#/components/responses/Empty" }
+        default: { $ref: "#/components/responses/Error" }
+
+components:
+  securitySchemes:
+    uiUser:
+      type: http
+      scheme: basic
+      description: |
+        UI user (`--server-username`, default `kopia`) with the server password
+        (`SERVER PASSWORD:` line when started with `--random-password`). After the
+        first successful request the server also sets a short-lived `Kopia-Auth` cookie
+        JWT; basic auth must still be sent on every request.
+    csrfToken:
+      type: apiKey
+      in: header
+      name: X-Kopia-Csrf-Token
+      description: |
+        HMAC of the `Kopia-Session-Cookie` value. Obtain both by `GET /` (see README,
+        "CSRF handshake"). Not checked when the server runs with `--disable-csrf-token-checks`.
+    serverControlUser:
+      type: http
+      scheme: basic
+      description: Server-control user (`--server-control-username`, default `server-control`) with `SERVER CONTROL PASSWORD:`.
+
+  parameters:
+    FilterUserName:
+      name: userName
+      in: query
+      description: Filter; empty or omitted matches any.
+      schema: { type: string }
+    FilterHost:
+      name: host
+      in: query
+      description: Filter; empty or omitted matches any.
+      schema: { type: string }
+    FilterPath:
+      name: path
+      in: query
+      description: Filter; empty or omitted matches any.
+      schema: { type: string }
+    TargetUserName:
+      name: userName
+      in: query
+      description: Policy target user. Empty for global and host policies.
+      schema: { type: string, default: "" }
+    TargetHost:
+      name: host
+      in: query
+      description: Policy target host. Empty for the global policy.
+      schema: { type: string, default: "" }
+    TargetPath:
+      name: path
+      in: query
+      description: Policy target path. Empty for global, host and user policies.
+      schema: { type: string, default: "" }
+
+  requestBodies:
+    Empty:
+      required: false
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Empty" }
+
+  responses:
+    Empty:
+      description: Success with an empty object `{}`
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Empty" }
+    Error:
+      description: |
+        API error. Status 400 (request errors including `NOT_CONNECTED` and most
+        `NOT_FOUND`), 403 `ACCESS_DENIED`, 404 `NOT_FOUND`, 500 `INTERNAL`.
+        Despite `Content-Type: text/plain`, the body is the JSON error envelope.
+        401 (missing credentials / invalid CSRF token) and 413 come from the
+        auth layer as **plain text**, not JSON.
+      content:
+        text/plain:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  schemas:
+    Empty:
+      type: object
+      x-source: server
+      additionalProperties: false
+
+    ErrorResponse:
+      type: object
+      x-source: server
+      required: [code, error]
+      properties:
+        code: { $ref: "#/components/schemas/ApiErrorCode" }
+        error: { type: string, description: "Human-readable message" }
+
+    ApiErrorCode:
+      type: string
+      x-source: server
+      enum:
+        - INTERNAL
+        - ALREADY_CONNECTED
+        - ALREADY_INITIALIZED
+        - INVALID_PASSWORD
+        - INVALID_TOKEN
+        - MALFORMED_REQUEST
+        - NOT_CONNECTED
+        - NOT_FOUND
+        - NOT_INITIALIZED
+        - PATH_NOT_FOUND
+        - STORAGE_CONNECTION
+        - ACCESS_DENIED
+
+    Timestamp:
+      type: string
+      format: date-time
+      description: RFC 3339 in UTC with nanoseconds, e.g. `2026-11-15T10:04:05.123456789Z`.
+
+    ObjectID:
+      type: string
+      description: |
+        Kopia object ID. Treat as opaque; use `DirEntry.type` to tell directories
+        from files.
+
+    SourceInfo:
+      type: object
+      x-source: server
+      required: [host, userName, path]
+      properties:
+        host: { type: string }
+        userName: { type: string }
+        path: { type: string }
+
+    # -------------------------------------------------------------- repository
+    RepoStatus:
+      type: object
+      x-source: server
+      description: |
+        `serverapi.StatusResponse` with `repo.ClientOptions` embedded (its fields
+        appear at top level). Direct repositories fill the format fields; repositories
+        reached through a Kopia repository server fill `apiServerURL` instead.
+      required: [connected, supportsContentCompression]
+      properties:
+        connected: { type: boolean }
+        initTaskID: { type: string, description: "Set while the repository is being opened/created/connected." }
+        configFile: { type: string }
+        formatVersion: { type: integer, enum: [1, 2, 3] }
+        hash: { type: string }
+        encryption: { type: string }
+        ecc: { type: string }
+        eccOverheadPercent: { type: integer }
+        splitter: { type: string }
+        maxPackSize: { type: integer }
+        storage: { type: string, description: "Storage type ID, e.g. `filesystem`, `s3`." }
+        apiServerURL: { type: string }
+        supportsContentCompression: { type: boolean }
+        hostname: { type: string }
+        username: { type: string }
+        readonly: { type: boolean }
+        permissiveCacheLoading: { type: boolean }
+        description: { type: string }
+        enableActions: { type: boolean }
+        formatBlobCacheDuration: { type: integer, description: "Go duration in nanoseconds." }
+        throttlingLimits: { $ref: "#/components/schemas/ThrottlingLimits" }
+
+    ClientOptions:
+      type: object
+      x-source: server
+      properties:
+        hostname: { type: string, description: "Empty = server's host name." }
+        username: { type: string, description: "Empty = server's user name." }
+        readonly: { type: boolean }
+        permissiveCacheLoading: { type: boolean }
+        description: { type: string }
+        enableActions: { type: boolean, description: "Allow before/after snapshot actions to run." }
+        formatBlobCacheDuration: { type: integer }
+        throttlingLimits: { $ref: "#/components/schemas/ThrottlingLimits" }
+
+    ThrottlingLimits:
+      type: object
+      x-source: server
+      properties:
+        readsPerSecond: { type: number }
+        writesPerSecond: { type: number }
+        listsPerSecond: { type: number }
+        maxUploadSpeedBytesPerSecond: { type: number }
+        maxDownloadSpeedBytesPerSecond: { type: number }
+        concurrentReads: { type: integer }
+        concurrentWrites: { type: integer }
+
+    AlgorithmInfo:
+      type: object
+      x-source: server
+      required: [id, deprecated]
+      properties:
+        id: { type: string }
+        deprecated: { type: boolean }
+
+    SupportedAlgorithms:
+      type: object
+      x-source: server
+      required:
+        [defaultHash, defaultEncryption, defaultEcc, defaultSplitter, hash, encryption, ecc, splitter, compression]
+      properties:
+        defaultHash: { type: string }
+        defaultEncryption: { type: string }
+        defaultEcc: { type: string }
+        defaultSplitter: { type: string }
+        hash: { type: array, items: { $ref: "#/components/schemas/AlgorithmInfo" } }
+        encryption: { type: array, items: { $ref: "#/components/schemas/AlgorithmInfo" } }
+        ecc: { type: array, items: { $ref: "#/components/schemas/AlgorithmInfo" } }
+        splitter: { type: array, items: { $ref: "#/components/schemas/AlgorithmInfo" } }
+        compression: { type: array, items: { $ref: "#/components/schemas/AlgorithmInfo" } }
+
+    StorageConnection:
+      type: object
+      x-source: server
+      description: |
+        `blob.ConnectionInfo`. The server picks the provider's `Options` struct by
+        `type` (`repo/blob/<provider>/*_options.go`) and decodes `config` into it.
+        Go's JSON decoder matches keys case-insensitively, so the HTML UI's `keyId`
+        (B2) works too; send the canonical names below. Every provider also accepts
+        the `ThrottlingLimits` fields at the top level of `config`, and filesystem,
+        SFTP, WebDAV and rclone accept `dirShards` (int array) and `listParallelism`.
+      required: [type, config]
+      properties:
+        type:
+          type: string
+          enum: [filesystem, s3, b2, gcs, gdrive, azureBlob, sftp, webdav, rclone]
+        config:
+          description: Shape depends on `type`.
+          anyOf:
+            - $ref: "#/components/schemas/FilesystemStorageConfig"
+            - $ref: "#/components/schemas/S3StorageConfig"
+            - $ref: "#/components/schemas/B2StorageConfig"
+            - $ref: "#/components/schemas/GCSStorageConfig"
+            - $ref: "#/components/schemas/AzureStorageConfig"
+            - $ref: "#/components/schemas/SFTPStorageConfig"
+            - $ref: "#/components/schemas/WebDAVStorageConfig"
+            - $ref: "#/components/schemas/RcloneStorageConfig"
+            - type: object
+              description: Other providers (e.g. `gdrive`), not modelled here.
+
+    FilesystemStorageConfig:
+      type: object
+      x-source: server
+      description: "`type: filesystem`"
+      properties:
+        path: { type: string, description: "Absolute path on the server's machine." }
+        fileMode: { type: integer, description: "Unix mode for new files (Go os.FileMode, decimal)." }
+        dirMode: { type: integer }
+        uid: { type: integer }
+        gid: { type: integer }
+    S3StorageConfig:
+      type: object
+      x-source: server
+      description: "`type: s3`"
+      properties:
+        bucket: { type: string }
+        prefix: { type: string }
+        endpoint: { type: string, description: "Host[:port] without scheme, e.g. `s3.amazonaws.com`." }
+        region: { type: string }
+        doNotUseTLS: { type: boolean }
+        doNotVerifyTLS: { type: boolean }
+        rootCA: { type: string, contentEncoding: base64, description: "PEM bundle, base64 (Go []byte)." }
+        accessKeyID: { type: string }
+        secretAccessKey: { type: string }
+        sessionToken: { type: string }
+        webIdentityToken: { type: string }
+        webIdentityTokenFile: { type: string }
+        roleARN: { type: string }
+        sessionName: { type: string }
+        duration: { type: string, description: "Role session duration, Go duration string (e.g. `1h`)." }
+        roleEndpoint: { type: string }
+        roleRegion: { type: string }
+        pointInTime: { $ref: "#/components/schemas/Timestamp" }
+    B2StorageConfig:
+      type: object
+      x-source: server
+      description: "`type: b2`"
+      properties:
+        bucket: { type: string }
+        prefix: { type: string }
+        keyID: { type: string }
+        key: { type: string }
+    GCSStorageConfig:
+      type: object
+      x-source: server
+      description: "`type: gcs`"
+      properties:
+        bucket: { type: string }
+        prefix: { type: string }
+        credentialsFile: { type: string }
+        credentials: { type: object, description: "Service-account JSON, inline." }
+        readOnly: { type: boolean }
+        pointInTime: { $ref: "#/components/schemas/Timestamp" }
+    AzureStorageConfig:
+      type: object
+      x-source: server
+      description: |
+        `type: azureBlob`. `TenantID`, `ClientID` and `ClientSecret` have no JSON tag
+        in Go, so their keys are the Go field names.
+      properties:
+        container: { type: string }
+        prefix: { type: string }
+        storageAccount: { type: string }
+        storageKey: { type: string }
+        sasToken: { type: string }
+        TenantID: { type: string }
+        ClientID: { type: string }
+        ClientSecret: { type: string }
+        clientCertificate: { type: string }
+        azureFederatedTokenFile: { type: string }
+        storageDomain: { type: string }
+        doNotUseTLS: { type: boolean }
+        pointInTime: { $ref: "#/components/schemas/Timestamp" }
+    SFTPStorageConfig:
+      type: object
+      x-source: server
+      description: "`type: sftp`"
+      properties:
+        path: { type: string }
+        host: { type: string }
+        port: { type: integer }
+        username: { type: string }
+        password: { type: string }
+        keyfile: { type: string }
+        keyData: { type: string }
+        knownHostsFile: { type: string }
+        knownHostsData: { type: string }
+        externalSSH: { type: boolean }
+        sshCommand: { type: string, description: "Default `ssh`." }
+        sshArguments: { type: string }
+    WebDAVStorageConfig:
+      type: object
+      x-source: server
+      description: "`type: webdav`"
+      properties:
+        url: { type: string }
+        username: { type: string }
+        password: { type: string }
+        trustedServerCertificateFingerprint: { type: string }
+        atomicWrites: { type: boolean }
+    RcloneStorageConfig:
+      type: object
+      x-source: server
+      description: "`type: rclone`"
+      properties:
+        remotePath: { type: string, description: "e.g. `myremote:backups/kopia`" }
+        rcloneExe: { type: string }
+        rcloneArgs: { type: array, items: { type: string } }
+        rcloneEnv: { type: array, items: { type: string } }
+        startupTimeout: { type: string, description: "Go duration string." }
+        debug: { type: boolean }
+        noWaitForTransfers: { type: boolean }
+        embeddedConfig: { type: string }
+        atomicWrites: { type: boolean }
+
+    APIServerInfo:
+      type: object
+      x-source: server
+      required: [url]
+      properties:
+        url: { type: string, description: "e.g. `https://backup.example.com:51515`" }
+        serverCertFingerprint: { type: string, description: "SHA-256 of the server's TLS certificate, hex." }
+        localCacheKeyDerivationAlgorithm: { type: string }
+
+    CheckRepositoryExistsRequest:
+      type: object
+      x-source: server
+      required: [storage]
+      properties:
+        storage: { $ref: "#/components/schemas/StorageConnection" }
+
+    ConnectRepositoryRequest:
+      type: object
+      x-source: server
+      description: |
+        Exactly one way to connect: `storage` + `password`, `apiServer` + `password`
+        (Kopia repository server), or `token` (overrides the others).
+      properties:
+        storage: { $ref: "#/components/schemas/StorageConnection" }
+        password: { type: string }
+        token: { type: string }
+        apiServer: { $ref: "#/components/schemas/APIServerInfo" }
+        clientOptions: { $ref: "#/components/schemas/ClientOptions" }
+        syncWaitTime:
+          type: integer
+          description: Seconds to wait for the connect task before returning. 0 = server default, negative = forever.
+
+    CreateRepositoryRequest:
+      type: object
+      x-source: server
+      required: [storage, password]
+      properties:
+        storage: { $ref: "#/components/schemas/StorageConnection" }
+        password: { type: string }
+        clientOptions: { $ref: "#/components/schemas/ClientOptions" }
+        syncWaitTime: { type: integer }
+        options: { $ref: "#/components/schemas/NewRepositoryOptions" }
+
+    NewRepositoryOptions:
+      type: object
+      x-source: server
+      properties:
+        blockFormat:
+          type: object
+          properties:
+            version: { type: integer, enum: [1, 2, 3], description: "Format version; the UI defaults to the latest." }
+            hash: { type: string }
+            encryption: { type: string }
+            ecc: { type: string }
+            eccOverheadPercent: { type: integer }
+            maxPackSize: { type: integer }
+        objectFormat:
+          type: object
+          properties:
+            splitter: { type: string }
+        retentionMode:
+          {
+            type: string,
+            enum: [GOVERNANCE, COMPLIANCE, Locked],
+            description: "Blob retention (object lock). GOVERNANCE/COMPLIANCE for S3-style storage, Locked for Azure.",
+          }
+        retentionPeriod: { type: integer, description: "Go duration in nanoseconds." }
+
+    CurrentUser:
+      type: object
+      x-source: server
+      required: [username, hostname]
+      properties:
+        username: { type: string }
+        hostname: { type: string }
+
+    CliInfo:
+      type: object
+      x-source: server
+      required: [executable]
+      properties:
+        executable: { type: string }
+
+    # -------------------------------------------------------------- sources
+    SourceStatusKind:
+      type: string
+      x-source: server
+      enum: [IDLE, PENDING, UPLOADING, PAUSED, FAILED, REMOTE]
+      description: |
+        `REMOTE`: source belongs to another user/host; the server only shows it.
+        `PENDING`: waiting for a parallel-snapshot slot. `PAUSED`: via control API.
+
+    SourceStatus:
+      type: object
+      x-source: server
+      required: [source, status, schedule]
+      properties:
+        source: { $ref: "#/components/schemas/SourceInfo" }
+        status: { $ref: "#/components/schemas/SourceStatusKind" }
+        schedule: { $ref: "#/components/schemas/SchedulingPolicy" }
+        lastSnapshot: { $ref: "#/components/schemas/SnapshotManifest" }
+        nextSnapshotTime: { $ref: "#/components/schemas/Timestamp" }
+        upload: { $ref: "#/components/schemas/UploadCounters" }
+        currentTask: { type: string, description: "Task ID of the running snapshot." }
+
+    SourcesResponse:
+      type: object
+      x-source: server
+      required: [localUsername, localHost, multiUser, sources]
+      properties:
+        localUsername: { type: string }
+        localHost: { type: string }
+        multiUser: { type: boolean, description: "Repository lets this client see other users' data." }
+        sources: { type: array, items: { $ref: "#/components/schemas/SourceStatus" } }
+
+    UploadCounters:
+      type: object
+      x-source: server
+      description: Live progress of a running snapshot.
+      properties:
+        cachedBytes: { type: integer, format: int64 }
+        hashedBytes: { type: integer, format: int64 }
+        uploadedBytes: { type: integer, format: int64 }
+        estimatedBytes: { type: integer, format: int64 }
+        cachedFiles: { type: integer }
+        hashedFiles: { type: integer }
+        excludedFiles: { type: integer }
+        excludedDirs: { type: integer }
+        errors: { type: integer }
+        ignoredErrors: { type: integer }
+        estimatedFiles: { type: integer, format: int64 }
+        directory: { type: string, description: "Directory currently being processed." }
+        lastErrorPath: { type: string }
+        lastError: { type: string }
+
+    CreateSnapshotSourceRequest:
+      type: object
+      x-source: server
+      required: [path, policy]
+      properties:
+        path: { type: string }
+        createSnapshot: { type: boolean }
+        policy: { $ref: "#/components/schemas/Policy" }
+
+    CreateSnapshotSourceResponse:
+      type: object
+      x-source: server
+      required: [snapshotted]
+      properties:
+        snapshotted: { type: boolean }
+
+    SourceActionResponse:
+      type: object
+      x-source: server
+      required: [success]
+      properties:
+        success: { type: boolean }
+
+    MultipleSourceActionResponse:
+      type: object
+      x-source: server
+      required: [sources]
+      properties:
+        sources:
+          type: object
+          description: Keyed by `user@host:path`.
+          additionalProperties: { $ref: "#/components/schemas/SourceActionResponse" }
+
+    ResolvePathResponse:
+      type: object
+      x-source: server
+      required: [source]
+      properties:
+        source: { $ref: "#/components/schemas/SourceInfo" }
+
+    EstimateRequest:
+      type: object
+      x-source: server
+      required: [root]
+      properties:
+        root: { type: string, description: "Local directory path." }
+        maxExamplesPerBucket: { type: integer }
+        policyOverride: { $ref: "#/components/schemas/Policy" }
+
+    # -------------------------------------------------------------- snapshots
+    DirectorySummary:
+      type: object
+      x-source: server
+      properties:
+        size: { type: integer, format: int64 }
+        files: { type: integer, format: int64 }
+        symlinks: { type: integer, format: int64 }
+        dirs: { type: integer, format: int64 }
+        maxTime: { $ref: "#/components/schemas/Timestamp" }
+        incomplete: { type: string }
+        numFailed: { type: integer }
+        numIgnoredErrors: { type: integer }
+        errors:
+          type: array
+          description: First 10 failed entries.
+          items:
+            type: object
+            required: [path, error]
+            properties:
+              path: { type: string }
+              error: { type: string }
+
+    DirEntry:
+      type: object
+      x-source: server
+      required: [obj]
+      properties:
+        name: { type: string }
+        type: { type: string, enum: ["f", "d", "s", ""], description: "f file, d directory, s symlink" }
+        mode: { type: string, description: "Octal permission string, e.g. `0755`. Omitted when 0." }
+        size: { type: integer, format: int64 }
+        mtime: { $ref: "#/components/schemas/Timestamp" }
+        uid: { type: integer }
+        gid: { type: integer }
+        obj: { $ref: "#/components/schemas/ObjectID" }
+        summ: { $ref: "#/components/schemas/DirectorySummary" }
+
+    DirectoryManifest:
+      type: object
+      x-source: server
+      required: [entries]
+      properties:
+        stream: { type: string, description: "Legacy, always `kopia:directory`." }
+        entries: { type: array, items: { $ref: "#/components/schemas/DirEntry" } }
+        summary: { oneOf: [{ $ref: "#/components/schemas/DirectorySummary" }, { type: "null" }] }
+
+    SnapshotStats:
+      type: object
+      x-source: server
+      properties:
+        totalSize: { type: integer, format: int64 }
+        excludedTotalSize: { type: integer, format: int64 }
+        fileCount: { type: integer }
+        cachedFiles: { type: integer }
+        nonCachedFiles: { type: integer }
+        dirCount: { type: integer }
+        excludedFileCount: { type: integer }
+        excludedDirCount: { type: integer }
+        ignoredErrorCount: { type: integer }
+        errorCount: { type: integer }
+
+    SnapshotManifest:
+      type: object
+      x-source: server
+      description: Full snapshot manifest, used for `SourceStatus.lastSnapshot`.
+      properties:
+        id: { type: string }
+        source: { $ref: "#/components/schemas/SourceInfo" }
+        description: { type: string }
+        startTime: { $ref: "#/components/schemas/Timestamp" }
+        endTime: { $ref: "#/components/schemas/Timestamp" }
+        stats: { $ref: "#/components/schemas/SnapshotStats" }
+        incomplete: { type: string }
+        rootEntry: { oneOf: [{ $ref: "#/components/schemas/DirEntry" }, { type: "null" }] }
+        tags: { type: object, additionalProperties: { type: string } }
+        pins: { type: array, items: { type: string } }
+
+    Snapshot:
+      type: object
+      x-source: server
+      description: Flattened snapshot row used by the snapshot list endpoints.
+      required: [id, startTime, endTime, rootID]
+      properties:
+        id: { type: string, description: "Manifest ID." }
+        description: { type: string }
+        startTime: { $ref: "#/components/schemas/Timestamp" }
+        endTime: { $ref: "#/components/schemas/Timestamp" }
+        incomplete: { type: string, description: "Reason the snapshot is incomplete (checkpoint), if any." }
+        summary: { oneOf: [{ $ref: "#/components/schemas/DirectorySummary" }, { type: "null" }] }
+        rootID: { $ref: "#/components/schemas/ObjectID" }
+        retention:
+          type: [array, "null"]
+          items: { type: string }
+          description: Why retention keeps this snapshot, e.g. `latest-1`, `daily-3`.
+        pins:
+          type: [array, "null"]
+          items: { type: string }
+
+    SnapshotsResponse:
+      type: object
+      x-source: server
+      required: [snapshots, unfilteredCount, uniqueCount]
+      properties:
+        snapshots: { type: array, items: { $ref: "#/components/schemas/Snapshot" } }
+        unfilteredCount: { type: integer }
+        uniqueCount: { type: integer }
+
+    DeleteSnapshotsRequest:
+      type: object
+      x-source: server
+      required: [source]
+      properties:
+        source: { $ref: "#/components/schemas/SourceInfo" }
+        snapshotManifestIds: { type: array, items: { type: string } }
+        deleteSourceAndPolicy:
+          type: boolean
+          description: Delete every snapshot of the source plus its policy; ignores `snapshotManifestIds`.
+
+    EditSnapshotsRequest:
+      type: object
+      x-source: server
+      required: [snapshots]
+      properties:
+        snapshots: { type: array, items: { type: string } }
+        description: { type: [string, "null"], description: "Omit or null to leave unchanged." }
+        addPins: { type: array, items: { type: string } }
+        removePins: { type: array, items: { type: string } }
+
+    # -------------------------------------------------------------- restore & mounts
+    RestoreOptions:
+      type: object
+      x-source: server
+      properties:
+        parallel: { type: integer }
+        incremental: { type: boolean, description: "Skip files that already exist with same size and mtime." }
+        deleteExtra: { type: boolean }
+        ignoreErrors: { type: boolean }
+        restoreDirEntryAtDepth: { type: integer, description: "Write placeholders below this depth (shallow restore)." }
+        minSizeForPlaceholder: { type: integer }
+
+    FilesystemRestoreOutput:
+      type: object
+      x-source: server
+      required: [targetPath]
+      properties:
+        targetPath: { type: string }
+        overwriteDirectories: { type: boolean }
+        overwriteFiles: { type: boolean }
+        overwriteSymlinks: { type: boolean }
+        ignorePermissionErrors: { type: boolean }
+        writeFilesAtomically: { type: boolean }
+        skipOwners: { type: boolean }
+        skipPermissions: { type: boolean }
+        skipTimes: { type: boolean }
+        writeSparseFiles: { type: boolean }
+        flushFiles: { type: boolean }
+
+    RestoreRequest:
+      type: object
+      x-source: server
+      required: [root]
+      properties:
+        root: { $ref: "#/components/schemas/ObjectID" }
+        fsOutput: { $ref: "#/components/schemas/FilesystemRestoreOutput" }
+        zipFile: { type: string, description: "Path of a ZIP file to write on the server." }
+        uncompressedZip: { type: boolean }
+        tarFile: { type: string, description: "Path of a TAR file to write on the server." }
+        options: { $ref: "#/components/schemas/RestoreOptions" }
+
+    MountedSnapshot:
+      type: object
+      x-source: server
+      required: [path, root]
+      properties:
+        path: { type: string, description: "Local mount path or WebDAV URL." }
+        root: { $ref: "#/components/schemas/ObjectID" }
+
+    MountedSnapshots:
+      type: object
+      x-source: server
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/MountedSnapshot" } }
+
+    # -------------------------------------------------------------- policies
+    PoliciesResponse:
+      type: object
+      x-source: server
+      required: [policies]
+      properties:
+        policies:
+          type: array
+          items:
+            type: object
+            required: [id, target, policy]
+            properties:
+              id: { type: string }
+              target: { $ref: "#/components/schemas/SourceInfo" }
+              policy: { oneOf: [{ $ref: "#/components/schemas/Policy" }, { type: "null" }] }
+
+    ResolvePolicyRequest:
+      type: object
+      x-source: server
+      properties:
+        updates: { $ref: "#/components/schemas/Policy" }
+        numUpcomingSnapshotTimes: { type: integer, description: "If > 0, return that many upcoming snapshot times." }
+
+    ResolvePolicyResponse:
+      type: object
+      x-source: server
+      required: [effective, definition, defined]
+      properties:
+        effective: { oneOf: [{ $ref: "#/components/schemas/Policy" }, { type: "null" }] }
+        definition: { oneOf: [{ $ref: "#/components/schemas/PolicyDefinition" }, { type: "null" }] }
+        defined: { oneOf: [{ $ref: "#/components/schemas/Policy" }, { type: "null" }] }
+        upcomingSnapshotTimes: { type: [array, "null"], items: { $ref: "#/components/schemas/Timestamp" } }
+        schedulingError: { type: string }
+
+    PolicyDefinition:
+      type: object
+      x-source: server
+      description: |
+        Same shape as `Policy`, but every leaf is the `SourceInfo` of the policy that
+        supplied the effective value (all-empty SourceInfo = global policy). Used to
+        show "inherited from …" next to each field.
+      additionalProperties:
+        type: object
+        additionalProperties: true
+
+    Policy:
+      type: object
+      x-source: server
+      description: |
+        Sparse: only fields set at this level are present; missing fields inherit from
+        the parent (directory → user → host → global). `noParent: true` stops inheritance.
+      properties:
+        retention: { $ref: "#/components/schemas/RetentionPolicy" }
+        files: { $ref: "#/components/schemas/FilesPolicy" }
+        errorHandling: { $ref: "#/components/schemas/ErrorHandlingPolicy" }
+        scheduling: { $ref: "#/components/schemas/SchedulingPolicy" }
+        compression: { $ref: "#/components/schemas/CompressionPolicy" }
+        metadataCompression:
+          type: object
+          properties:
+            compressorName: { type: string }
+        splitter:
+          type: object
+          properties:
+            algorithm: { type: string }
+        actions: { $ref: "#/components/schemas/ActionsPolicy" }
+        osSnapshots: { $ref: "#/components/schemas/OSSnapshotPolicy" }
+        logging: { $ref: "#/components/schemas/LoggingPolicy" }
+        upload: { $ref: "#/components/schemas/UploadPolicy" }
+        noParent: { type: boolean }
+
+    RetentionPolicy:
+      type: object
+      x-source: server
+      properties:
+        keepLatest: { type: integer }
+        keepHourly: { type: integer }
+        keepDaily: { type: integer }
+        keepWeekly: { type: integer }
+        keepMonthly: { type: integer }
+        keepAnnual: { type: integer }
+        ignoreIdenticalSnapshots: { type: boolean }
+
+    SchedulingPolicy:
+      type: object
+      x-source: server
+      properties:
+        intervalSeconds: { type: integer, format: int64 }
+        timeOfDay:
+          type: array
+          items:
+            type: object
+            required: [hour, min]
+            properties:
+              hour: { type: integer, minimum: 0, maximum: 23 }
+              min: { type: integer, minimum: 0, maximum: 59 }
+        noParentTimeOfDay: { type: boolean }
+        manual: { type: boolean, description: "Only manual snapshots." }
+        cron: { type: array, items: { type: string }, description: "Cron expressions, optionally with `#comment`." }
+        runMissed: { type: boolean }
+
+    FilesPolicy:
+      type: object
+      x-source: server
+      properties:
+        ignore: { type: array, items: { type: string }, description: ".gitignore-style rules." }
+        noParentIgnore: { type: boolean }
+        ignoreDotFiles:
+          { type: array, items: { type: string }, description: "Names of ignore files, e.g. `.kopiaignore`." }
+        noParentDotFiles: { type: boolean }
+        ignoreCacheDirs: { type: boolean }
+        maxFileSize: { type: integer, format: int64 }
+        oneFileSystem: { type: boolean }
+
+    ErrorHandlingPolicy:
+      type: object
+      x-source: server
+      properties:
+        ignoreFileErrors: { type: boolean }
+        ignoreDirectoryErrors: { type: boolean }
+        ignoreUnknownTypes: { type: boolean }
+
+    CompressionPolicy:
+      type: object
+      x-source: server
+      properties:
+        compressorName: { type: string, description: "ID from `repo/algorithms` `compression`, or `none`." }
+        onlyCompress: { type: array, items: { type: string } }
+        noParentOnlyCompress: { type: boolean }
+        neverCompress: { type: array, items: { type: string } }
+        noParentNeverCompress: { type: boolean }
+        minSize: { type: integer, format: int64 }
+        maxSize: { type: integer, format: int64 }
+
+    ActionCommand:
+      type: object
+      x-source: server
+      properties:
+        path: { type: string, description: "Executable (alternative to `script`)." }
+        args: { type: array, items: { type: string } }
+        script: { type: string, description: "Inline script run by sh or cmd.exe." }
+        timeout: { type: integer, description: "Seconds. The UI defaults to 300." }
+        mode: { type: string, enum: [essential, optional, async] }
+
+    ActionsPolicy:
+      type: object
+      x-source: server
+      properties:
+        beforeFolder: { $ref: "#/components/schemas/ActionCommand" }
+        afterFolder: { $ref: "#/components/schemas/ActionCommand" }
+        beforeSnapshotRoot: { $ref: "#/components/schemas/ActionCommand" }
+        afterSnapshotRoot: { $ref: "#/components/schemas/ActionCommand" }
+
+    OSSnapshotPolicy:
+      type: object
+      x-source: server
+      properties:
+        volumeShadowCopy:
+          type: object
+          properties:
+            enable:
+              type: integer
+              enum: [0, 1, 2]
+              description: "0 never, 1 always (fail if unavailable), 2 when-available. Windows only."
+
+    LogDetail:
+      type: integer
+      x-source: server
+      minimum: 0
+      maximum: 10
+      description: 0 none, 5 normal, 10 maximum.
+
+    LoggingPolicy:
+      type: object
+      x-source: server
+      properties:
+        directories:
+          type: object
+          properties:
+            snapshotted: { $ref: "#/components/schemas/LogDetail" }
+            ignored: { $ref: "#/components/schemas/LogDetail" }
+        entries:
+          type: object
+          properties:
+            snapshotted: { $ref: "#/components/schemas/LogDetail" }
+            ignored: { $ref: "#/components/schemas/LogDetail" }
+            cacheHit: { $ref: "#/components/schemas/LogDetail" }
+            cacheMiss: { $ref: "#/components/schemas/LogDetail" }
+
+    UploadPolicy:
+      type: object
+      x-source: server
+      properties:
+        maxParallelSnapshots: { type: integer }
+        maxParallelFileReads: { type: integer }
+        parallelUploadAboveSize: { type: integer, format: int64 }
+
+    # -------------------------------------------------------------- tasks
+    TaskStatus:
+      type: string
+      x-source: server
+      enum: [RUNNING, CANCELING, CANCELED, SUCCESS, FAILED]
+
+    Task:
+      type: object
+      x-source: server
+      required: [id, startTime, kind, description, status, progressInfo, counters]
+      properties:
+        id: { type: string }
+        startTime: { $ref: "#/components/schemas/Timestamp" }
+        endTime: { $ref: "#/components/schemas/Timestamp" }
+        kind:
+          {
+            type: string,
+            description: "Snapshot, Restore, Estimate, Maintenance or Repository (open/connect/create; the mode is in `description`)",
+          }
+        description: { type: string }
+        status: { $ref: "#/components/schemas/TaskStatus" }
+        progressInfo: { type: string }
+        errorMessage: { type: string }
+        counters:
+          type: [object, "null"]
+          additionalProperties:
+            type: object
+            required: [value, level]
+            properties:
+              value: { type: integer, format: int64 }
+              units: { type: string, description: "e.g. `bytes`" }
+              level: { type: string, enum: ["", notice, warning, error] }
+
+    TasksResponse:
+      type: object
+      x-source: server
+      required: [tasks]
+      properties:
+        tasks: { type: array, items: { $ref: "#/components/schemas/Task" } }
+
+    TasksSummary:
+      type: object
+      x-source: server
+      propertyNames: { $ref: "#/components/schemas/TaskStatus" }
+      additionalProperties: { type: integer }
+
+    TaskLogEntry:
+      type: object
+      x-source: server
+      description: zap JSON log line. Extra structured fields may be present.
+      required: [ts, level, msg]
+      properties:
+        ts: { type: number, description: "Unix time in seconds (fractional)." }
+        level: { type: integer, enum: [0, 1, 2, 3], description: "0 debug, 1 info, 2 warning, 3 error" }
+        mod: { type: string, description: "Logger module name." }
+        msg: { type: string }
+      additionalProperties: true
+
+    TaskLogsResponse:
+      type: object
+      x-source: server
+      required: [logs]
+      properties:
+        logs: { type: [array, "null"], items: { $ref: "#/components/schemas/TaskLogEntry" } }
+
+    # -------------------------------------------------------------- notifications
+    NotificationSeverity:
+      type: integer
+      x-source: server
+      enum: [-100, -10, 0, 10, 20]
+      description: "-100 verbose, -10 success, 0 report, 10 warning, 20 error"
+
+    NotificationProfile:
+      type: object
+      x-source: server
+      required: [profile, method, minSeverity]
+      properties:
+        profile: { type: string, description: "Unique profile name." }
+        minSeverity: { $ref: "#/components/schemas/NotificationSeverity" }
+        method:
+          type: object
+          required: [type, config]
+          properties:
+            type: { type: string, enum: [email, pushover, webhook] }
+            config:
+              oneOf:
+                - $ref: "#/components/schemas/EmailNotificationConfig"
+                - $ref: "#/components/schemas/PushoverNotificationConfig"
+                - $ref: "#/components/schemas/WebhookNotificationConfig"
+
+    NotificationFormat:
+      type: string
+      enum: [txt, html]
+
+    EmailNotificationConfig:
+      type: object
+      x-source: server
+      required: [smtpServer, smtpPort, from, to]
+      properties:
+        smtpServer: { type: string }
+        smtpPort: { type: integer, default: 587 }
+        smtpIdentity: { type: string }
+        smtpUsername: { type: string }
+        smtpPassword: { type: string }
+        from: { type: string }
+        to: { type: string }
+        cc: { type: string }
+        format: { $ref: "#/components/schemas/NotificationFormat" }
+
+    PushoverNotificationConfig:
+      type: object
+      x-source: server
+      required: [appToken, userKey]
+      properties:
+        appToken: { type: string }
+        userKey: { type: string }
+        format: { $ref: "#/components/schemas/NotificationFormat" }
+
+    WebhookNotificationConfig:
+      type: object
+      x-source: server
+      required: [endpoint]
+      properties:
+        endpoint: { type: string }
+        method: { type: string, enum: [POST, PUT], default: POST }
+        headers: { type: string, description: "Newline-separated `Key: Value` lines." }
+        format: { $ref: "#/components/schemas/NotificationFormat" }
+
+    # -------------------------------------------------------------- preferences
+    UIPreferences:
+      type: object
+      x-source: server
+      description: Fixed set of fields; unknown fields are dropped on save.
+      properties:
+        bytesStringBase2: { type: boolean }
+        defaultSnapshotViewAll: { type: boolean }
+        theme: { type: string }
+        fontSize: { type: string }
+        pageSize: { type: integer }
+        language: { type: string }
+        locale: { type: string }
