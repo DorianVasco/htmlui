@@ -15,7 +15,7 @@ import { api, ApiError, useApi, useTask } from "../../api";
 import type { ResolvedPolicy, SourceInfo, Task } from "../../api";
 import { PageHeader } from "../components";
 import { ownerName, relativeTime, sizeDisplayName } from "../format";
-import { legacy } from "../legacy";
+import { policyEditorPath } from "./policies/policyModel";
 import { usePreferences } from "../preferences";
 import { PathField } from "../PathField";
 
@@ -93,7 +93,7 @@ function PolicyPreview({ resolved, source }: { resolved: ResolvedPolicy; source:
     <Card>
       <Group justify="space-between" mb="sm">
         <Text fw={600}>Policy</Text>
-        <Anchor href={legacy.policy(source)} size="sm">
+        <Anchor component={Link} to={policyEditorPath(source)} size="sm">
           Edit policy <IconExternalLink size={12} style={{ verticalAlign: "middle" }} />
         </Anchor>
       </Group>

@@ -11,6 +11,8 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { NewSnapshotPage } from "./pages/NewSnapshotPage";
 import { SourceDetailPage } from "./pages/source/SourceDetailPage";
 import { TasksPage } from "./pages/tasks/TasksPage";
+import { PreferencesPage } from "./pages/preferences/PreferencesPage";
+import { PoliciesPage } from "./pages/policies/PoliciesPage";
 
 /**
  * While the new UI is in development it lives under /ui; route paths below
@@ -25,10 +27,13 @@ export function AppRoutes() {
         <Route element={<AppLayout />}>
           <Route path="/" element={<Navigate to="/snapshots" replace />} />
           <Route path="/repo" element={<RepositoryPage />} />
+          <Route path="/preferences" element={<PreferencesPage />} />
           <Route element={<RequireConnection />}>
             <Route path="/snapshots" element={<DashboardPage />} />
             <Route path="/snapshots/new" element={<NewSnapshotPage />} />
             <Route path="/snapshots/single-source" element={<SourceDetailPage />} />
+            <Route path="/policies" element={<PoliciesPage />} />
+            <Route path="/policies/edit" element={<PoliciesPage />} />
             <Route path="/tasks" element={<TasksPage />} />
             <Route path="/tasks/:tid" element={<TasksPage />} />
           </Route>

@@ -205,9 +205,51 @@ export async function installDevMock(mode: DevMockMode): Promise<void> {
     repoDescription = JSON.parse(config.data).description;
     return [200, {}];
   });
+  let uiPrefs: Record<string, unknown> = {
+    bytesStringBase2: false,
+    defaultSnapshotViewAll: false,
+    theme: "light",
+    pageSize: 20,
+  };
+  mock.onGet("/ui-preferences").reply(() => [200, uiPrefs]);
+  mock.onPut("/ui-preferences").reply((config) => {
+    uiPrefs = JSON.parse(config.data);
+    return [200, {}];
+  });
+  let notificationProfiles: Record<string, unknown>[] = [
+    {
+      profile: "email-1",
+      method: {
+        type: "email",
+        config: {
+          smtpServer: "smtp.example.com",
+          smtpPort: 587,
+          from: "kopia@example.com",
+          to: "me@example.com",
+          format: "txt",
+        },
+      },
+      minSeverity: 10,
+    },
+  ];
+  mock.onGet("/notificationProfiles").reply(() => [200, notificationProfiles]);
+  mock.onPost("/notificationProfiles").reply((config) => {
+    const p = JSON.parse(config.data);
+    notificationProfiles = [...notificationProfiles.filter((x) => x.profile !== p.profile), p];
+    return [200, {}];
+  });
+  mock.onDelete(/^\/notificationProfiles\/.+$/).reply((config) => {
+    const name = decodeURIComponent((config.url ?? "").split("/").pop() ?? "");
+    notificationProfiles = notificationProfiles.filter((x) => x.profile !== name);
+    return [200, {}];
+  });
   mock
-    .onGet("/ui-preferences")
-    .reply(200, { bytesStringBase2: false, defaultSnapshotViewAll: false, theme: "light", pageSize: 20 });
+    .onPost("/testNotificationProfile")
+    .reply((config) =>
+      JSON.parse(config.data).method?.type === "webhook"
+        ? [500, { code: "INTERNAL", error: "unable to send: connection refused" }]
+        : [200, {}],
+    );
   mock
     .onGet("/tasks-summary")
     .reply(() => [200, { RUNNING: sources.filter((s) => s.status === "UPLOADING").length, SUCCESS: 12 }]);
@@ -274,16 +316,115 @@ export async function installDevMock(mode: DevMockMode): Promise<void> {
     if (/^[A-Za-z]:$/.test(path)) path += "\\";
     return [200, { source: { userName: "me", host: "workstation", path } }];
   });
-  mock.onGet(/^\/policy\?/).reply(404, { code: "NOT_FOUND", error: "policy not found" });
-  mock.onPost(/^\/policy\/resolve\?/).reply(200, {
-    effective: {
+  // ---- policies: stored per target, resolved like the server (global → host → user → folder) ----
+  type Target = { userName: string; host: string; path: string };
+  const policyStore = new Map<string, { target: Target; policy: Record<string, unknown> }>();
+  const tkey = (t: Target) => `${t.userName}@${t.host}:${t.path}`;
+  const putPolicy = (target: Target, policy: Record<string, unknown>) =>
+    policyStore.set(tkey(target), { target, policy });
+  putPolicy(
+    { userName: "", host: "", path: "" },
+    {
       retention: { keepLatest: 10, keepHourly: 48, keepDaily: 7, keepWeekly: 4, keepMonthly: 24, keepAnnual: 3 },
       scheduling: { intervalSeconds: 86400, timeOfDay: [{ hour: 2, min: 0 }] },
       compression: { compressorName: "zstd" },
-      files: { ignore: [".git", "node_modules"] },
+      files: { ignoreDotFiles: [".kopiaignore"], ignoreCacheDirs: true },
     },
-    definition: {},
-    upcomingSnapshotTimes: [inMs(10 * hour), inMs(34 * hour), inMs(58 * hour)],
+  );
+  putPolicy({ userName: "", host: "workstation", path: "" }, { upload: { maxParallelSnapshots: 2 } });
+  putPolicy(
+    { userName: "me", host: "workstation", path: "D:\\Projects" },
+    {
+      files: { ignore: ["node_modules/", "*.tmp", ".git/"] },
+      actions: { beforeSnapshotRoot: { script: "C:\\Scripts\\pause-db.cmd", timeout: 60, mode: "essential" } },
+    },
+  );
+  const targetFromUrl = (url?: string): Target => parseSource(url);
+  const chainFor = (t: Target): Target[] => [
+    { userName: "", host: "", path: "" },
+    ...(t.host ? [{ userName: "", host: t.host, path: "" }] : []),
+    ...(t.host && t.userName ? [{ userName: t.userName, host: t.host, path: "" }] : []),
+    ...(t.path ? [t] : []),
+  ];
+  const isPlainObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
+  const mergeInto = (
+    eff: Record<string, unknown>,
+    def: Record<string, unknown>,
+    p: Record<string, unknown>,
+    by: Target,
+  ) => {
+    for (const [k, v] of Object.entries(p)) {
+      if (k === "noParent") continue;
+      if (isPlainObject(v)) {
+        if (!isPlainObject(eff[k])) eff[k] = {};
+        if (!isPlainObject(def[k])) def[k] = {};
+        mergeInto(eff[k] as Record<string, unknown>, def[k] as Record<string, unknown>, v, by);
+      } else if (v !== undefined) {
+        eff[k] = v;
+        def[k] = by;
+      }
+    }
+  };
+  const upcoming = (sched: Record<string, unknown> | undefined, n: number): string[] => {
+    if (!sched || sched.manual) return [];
+    const times: number[] = [];
+    const interval = Number(sched.intervalSeconds ?? 0) * 1000;
+    if (interval) for (let i = 1; i <= n; i++) times.push(Date.now() + i * interval);
+    for (const tod of (sched.timeOfDay as { hour: number; min: number }[] | undefined) ?? []) {
+      for (let d = 0; d < n; d++) {
+        const t = new Date();
+        t.setHours(tod.hour, tod.min, 0, 0);
+        t.setDate(t.getDate() + d);
+        if (t.valueOf() > Date.now()) times.push(t.valueOf());
+      }
+    }
+    return times
+      .sort((a, b) => a - b)
+      .slice(0, n)
+      .map((t) => new Date(t).toISOString());
+  };
+  mock
+    .onGet("/policies")
+    .reply(() => [
+      200,
+      { policies: [...policyStore.values()].map(({ target, policy }) => ({ id: tkey(target), target, policy })) },
+    ]);
+  mock.onGet(/^\/policy\?/).reply((config) => {
+    const p = policyStore.get(tkey(targetFromUrl(config.url)));
+    return p ? [200, p.policy] : [404, { code: "NOT_FOUND", error: "policy not found" }];
+  });
+  mock.onPut(/^\/policy\?/).reply((config) => {
+    putPolicy(targetFromUrl(config.url), JSON.parse(config.data));
+    return [200, {}];
+  });
+  mock.onDelete(/^\/policy\?/).reply((config) => {
+    policyStore.delete(tkey(targetFromUrl(config.url)));
+    return [200, {}];
+  });
+  mock.onPost(/^\/policy\/resolve\?/).reply((config) => {
+    const target = targetFromUrl(config.url);
+    const req = JSON.parse(config.data);
+    const effective: Record<string, unknown> = {};
+    const definition: Record<string, unknown> = {};
+    let chain = chainFor(target).map((t) => ({
+      t,
+      p: tkey(t) === tkey(target) ? (req.updates ?? {}) : (policyStore.get(tkey(t))?.policy ?? {}),
+    }));
+    const cut = chain.map((c) => !!c.p.noParent).lastIndexOf(true);
+    if (cut > 0) chain = chain.slice(cut);
+    if (!chain.some((c) => tkey(c.t) === tkey(target))) chain.push({ t: target, p: req.updates ?? {} });
+    for (const { t, p } of chain) mergeInto(effective, definition, p, t);
+    return [
+      200,
+      {
+        effective,
+        definition,
+        upcomingSnapshotTimes: upcoming(
+          effective.scheduling as Record<string, unknown>,
+          req.numUpcomingSnapshotTimes ?? 5,
+        ),
+      },
+    ];
   });
   const tasks = new Map<string, { started: number; id: string }>();
   mock.onPost("/estimate").reply(() => {
@@ -354,6 +495,20 @@ export async function installDevMock(mode: DevMockMode): Promise<void> {
       200,
       { snapshots: visible, unfilteredCount: all.length, uniqueCount: all.filter((s) => !s.identical).length },
     ];
+  });
+  mock.onPost("/snapshots/edit").reply((config) => {
+    const req = JSON.parse(config.data);
+    const ids = new Set<string>(req.snapshots ?? []);
+    for (const list of histories.values()) {
+      for (const s of list) {
+        if (!ids.has(s.id)) continue;
+        if (typeof req.description === "string") s.description = req.description;
+        s.pins = [
+          ...new Set([...s.pins.filter((p: string) => !(req.removePins ?? []).includes(p)), ...(req.addPins ?? [])]),
+        ].sort();
+      }
+    }
+    return [200, {}];
   });
   mock.onPost("/snapshots/delete").reply((config) => {
     const req = JSON.parse(config.data);

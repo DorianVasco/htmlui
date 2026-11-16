@@ -42,7 +42,7 @@ import { api, useSources } from "../../api";
 import type { SourceInfo, SourceStatus } from "../../api";
 import { PageHeader, StatCard } from "../components";
 import { absoluteTime, ownerName, relativeTime, sizeDisplayName } from "../format";
-import { legacy } from "../legacy";
+import { policyEditorPath } from "./policies/policyModel";
 import { sourceDetailPath } from "./source/SourceDetailPage";
 import { usePreferences } from "../preferences";
 import {
@@ -217,11 +217,15 @@ function SourceActions({
           <Menu.Item component={Link} to={sourceDetailPath(s.source)} leftSection={<IconHistory size={16} />}>
             Snapshot history
           </Menu.Item>
-          <Menu.Item component="a" href={legacy.policy(s.source)} leftSection={<IconShieldCheck size={16} />}>
+          <Menu.Item component={Link} to={policyEditorPath(s.source)} leftSection={<IconShieldCheck size={16} />}>
             Edit policy
           </Menu.Item>
           {s.currentTask && (
-            <Menu.Item component={Link} to={"/tasks/" + encodeURIComponent(s.currentTask)} leftSection={<IconListDetails size={16} />}>
+            <Menu.Item
+              component={Link}
+              to={"/tasks/" + encodeURIComponent(s.currentTask)}
+              leftSection={<IconListDetails size={16} />}
+            >
               Task details
             </Menu.Item>
           )}

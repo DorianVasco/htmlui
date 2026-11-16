@@ -30,7 +30,6 @@ import {
   IconCheck,
   IconDatabase,
   IconDatabaseOff,
-  IconExternalLink,
   IconFolder,
   IconListCheck,
   IconMoon,
@@ -40,7 +39,6 @@ import {
   IconSun,
 } from "@tabler/icons-react";
 import { useTasksSummary } from "../api";
-import { legacy } from "./legacy";
 import { useRepoStatusContext } from "./repoStatus";
 import { useCurrentKnownRepo, useKnownRepos } from "./knownRepos";
 
@@ -49,7 +47,12 @@ function ColorSchemeToggle() {
   const dark = useComputedColorScheme("light") === "dark";
   return (
     <Tooltip label={dark ? "Light mode" : "Dark mode"}>
-      <ActionIcon variant="default" size="lg" onClick={() => setColorScheme(dark ? "light" : "dark")} aria-label="Toggle color scheme">
+      <ActionIcon
+        variant="default"
+        size="lg"
+        onClick={() => setColorScheme(dark ? "light" : "dark")}
+        aria-label="Toggle color scheme"
+      >
         {dark ? <IconSun size={18} /> : <IconMoon size={18} />}
       </ActionIcon>
     </Tooltip>
@@ -58,7 +61,17 @@ function ColorSchemeToggle() {
 
 const navLinkStyle = { borderRadius: "var(--mantine-radius-md)" };
 
-function AppNavLink({ label, to, icon: Icon, onClick }: { label: string; to: string; icon: typeof IconArchive; onClick: () => void }) {
+function AppNavLink({
+  label,
+  to,
+  icon: Icon,
+  onClick,
+}: {
+  label: string;
+  to: string;
+  icon: typeof IconArchive;
+  onClick: () => void;
+}) {
   return (
     <NavLink
       component={RouterNavLink}
@@ -67,25 +80,6 @@ function AppNavLink({ label, to, icon: Icon, onClick }: { label: string; to: str
       leftSection={<Icon size={18} stroke={1.6} />}
       onClick={onClick}
       variant="light"
-      style={navLinkStyle}
-      mb={2}
-    />
-  );
-}
-
-/** Sidebar entry for a page that still lives in the old UI. */
-function LegacyNavLink({ label, href, icon: Icon }: { label: string; href: string; icon: typeof IconArchive }) {
-  return (
-    <NavLink
-      component="a"
-      href={href}
-      label={label}
-      leftSection={<Icon size={18} stroke={1.6} />}
-      rightSection={
-        <Tooltip label="Opens the classic UI">
-          <IconExternalLink size={14} stroke={1.6} color="var(--mantine-color-dimmed)" />
-        </Tooltip>
-      }
       style={navLinkStyle}
       mb={2}
     />
@@ -125,7 +119,8 @@ export function RequireConnection() {
   const status = useRepoStatusContext();
 
   if (status.isLoading) return <PageLoader />;
-  if (status.error && !status.data) return <ServerUnreachable message={status.error.message} onRetry={() => void status.refresh()} />;
+  if (status.error && !status.data)
+    return <ServerUnreachable message={status.error.message} onRetry={() => void status.refresh()} />;
   if (status.data?.initTaskID) return <PageLoader label="Opening repository…" />;
 
   if (!status.data?.connected) {
@@ -217,7 +212,11 @@ export function AppLayout() {
   const { runningCount } = useTasksSummary({ enabled: connected });
 
   return (
-    <AppShell header={{ height: 60 }} navbar={{ width: 240, breakpoint: "sm", collapsed: { mobile: !opened } }} padding="lg">
+    <AppShell
+      header={{ height: 60 }}
+      navbar={{ width: 240, breakpoint: "sm", collapsed: { mobile: !opened } }}
+      padding="lg"
+    >
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between" wrap="nowrap">
           <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
@@ -241,10 +240,10 @@ export function AppLayout() {
       <AppShell.Navbar p="sm">
         <AppShell.Section grow component={ScrollArea}>
           <AppNavLink label="Snapshots" to="/snapshots" icon={IconArchive} onClick={close} />
-          <LegacyNavLink label="Policies" href={legacy.policies()} icon={IconShieldCheck} />
+          <AppNavLink label="Policies" to="/policies" icon={IconShieldCheck} onClick={close} />
           <AppNavLink label="Tasks" to="/tasks" icon={IconListCheck} onClick={close} />
           <AppNavLink label="Repository" to="/repo" icon={IconDatabase} onClick={close} />
-          <LegacyNavLink label="Preferences" href={legacy.preferences()} icon={IconSettings} />
+          <AppNavLink label="Preferences" to="/preferences" icon={IconSettings} onClick={close} />
         </AppShell.Section>
         <AppShell.Section>
           <Group gap={6} px="sm" py="xs">

@@ -31,6 +31,13 @@ export function installMantineDomStubs() {
     }
     Object.defineProperty(window, "ResizeObserver", { writable: true, value: ResizeObserverStub });
   }
+  // Textarea autosize listens for web font loading.
+  if (!("fonts" in document)) {
+    Object.defineProperty(document, "fonts", {
+      configurable: true,
+      value: { addEventListener: vi.fn(), removeEventListener: vi.fn(), ready: Promise.resolve() },
+    });
+  }
   if (!Element.prototype.scrollIntoView) {
     Element.prototype.scrollIntoView = vi.fn();
   }

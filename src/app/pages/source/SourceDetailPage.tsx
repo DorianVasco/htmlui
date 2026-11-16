@@ -29,7 +29,9 @@ import {
   IconAlertTriangle,
   IconDots,
   IconFolderOpen,
+  IconPencil,
   IconPin,
+  IconPinnedOff,
   IconPlayerPlay,
   IconPlayerStop,
   IconRestore,
@@ -40,11 +42,12 @@ import { api, useSnapshots, useSources } from "../../../api";
 import type { Snapshot, SourceInfo } from "../../../api";
 import { PageHeader, StatCard } from "../../components";
 import { absoluteTime, ownerName, relativeTime, sizeDisplayName } from "../../format";
-import { legacy } from "../../legacy";
+import { policyEditorPath } from "../policies/policyModel";
 import { usePreferences } from "../../preferences";
 import { isActive } from "../../sourceStatus";
 import { RestoreModal, RestoreTarget } from "./RestoreModal";
 import { SnapshotBrowser } from "./SnapshotBrowser";
+import { SnapshotEdit, SnapshotEditModal } from "./SnapshotEditModal";
 
 /** Route path of this page, relative to the app's basename. */
 export function sourceDetailPath(src: SourceInfo): string {
@@ -149,6 +152,7 @@ export function SourceDetailPage() {
   const [restoring, setRestoring] = useState<RestoreTarget | null>(null);
   const [deleting, setDeleting] = useState<"selected" | "source" | null>(null);
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState<SnapshotEdit | null>(null);
 
   const list = useMemo(
     () => [...(snapshots.data?.snapshots ?? [])].sort((a, b) => b.startTime.localeCompare(a.startTime)),
@@ -208,6 +212,15 @@ export function SourceDetailPage() {
     }
   };
 
+  const removePin = async (s: Snapshot, pin: string) => {
+    try {
+      await api.snapshots.edit({ snapshots: [s.id], removePins: [pin] });
+      await snapshots.refresh();
+    } catch (err) {
+      showError("Could not remove pin", err);
+    }
+  };
+
   const latest = list.find((s) => !s.incomplete);
   const pinnedCount = list.filter((s) => s.pins?.length).length;
   const hiddenCount =
@@ -231,8 +244,8 @@ export function SourceDetailPage() {
         actions={
           <>
             <Button
-              component="a"
-              href={legacy.policy(source)}
+              component={Link}
+              to={policyEditorPath(source)}
               variant="default"
               leftSection={<IconShieldCheck size={16} />}
             >
@@ -353,7 +366,7 @@ export function SourceDetailPage() {
                   <Table.Th>Retention</Table.Th>
                   <Table.Th ta="right">Size</Table.Th>
                   <Table.Th ta="right">Files</Table.Th>
-                  <Table.Th w={90} />
+                  <Table.Th w={120} />
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
@@ -376,11 +389,36 @@ export function SourceDetailPage() {
                           <Anchor size="sm" fw={500} c="var(--mantine-color-text)" onClick={() => setBrowsing(s)}>
                             {absoluteTime(s.startTime)}
                           </Anchor>
-                          {!!s.pins?.length && (
-                            <Tooltip label={"Pinned: " + s.pins.join(", ")}>
-                              <IconPin size={14} color="var(--mantine-color-orange-6)" aria-label="Pinned" />
-                            </Tooltip>
-                          )}
+                          {(s.pins ?? []).map((pin) => (
+                            <Badge
+                              key={pin}
+                              size="sm"
+                              variant="light"
+                              color="orange"
+                              tt="none"
+                              leftSection={<IconPin size={10} />}
+                              rightSection={
+                                <ActionIcon
+                                  size={14}
+                                  variant="transparent"
+                                  color="orange"
+                                  aria-label={`Remove pin ${pin}`}
+                                  onClick={() => void removePin(s, pin)}
+                                >
+                                  <IconPinnedOff size={10} />
+                                </ActionIcon>
+                              }
+                              style={{ cursor: "pointer" }}
+                              onClick={(e) => {
+                                if ((e.target as HTMLElement).closest("button")) return;
+                                setEditing({ kind: "pin", snapshot: s, pin });
+                              }}
+                              title="Click to rename"
+                              data-testid="snapshot-pin"
+                            >
+                              {pin}
+                            </Badge>
+                          ))}
                           {s.incomplete && (
                             <Tooltip label={s.incomplete}>
                               <Badge size="xs" variant="light" color="yellow">
@@ -426,6 +464,27 @@ export function SourceDetailPage() {
                             <IconRestore size={18} />
                           </ActionIcon>
                         </Tooltip>
+                        <Menu position="bottom-end" withinPortal>
+                          <Menu.Target>
+                            <ActionIcon variant="subtle" color="gray" aria-label="More snapshot actions">
+                              <IconDots size={18} />
+                            </ActionIcon>
+                          </Menu.Target>
+                          <Menu.Dropdown>
+                            <Menu.Item
+                              leftSection={<IconPencil size={16} />}
+                              onClick={() => setEditing({ kind: "description", snapshot: s })}
+                            >
+                              {s.description ? "Edit description…" : "Add description…"}
+                            </Menu.Item>
+                            <Menu.Item
+                              leftSection={<IconPin size={16} />}
+                              onClick={() => setEditing({ kind: "pin", snapshot: s })}
+                            >
+                              Add pin…
+                            </Menu.Item>
+                          </Menu.Dropdown>
+                        </Menu>
                       </Group>
                     </Table.Td>
                   </Table.Tr>
@@ -462,6 +521,7 @@ export function SourceDetailPage() {
         }}
       />
       <RestoreModal target={restoring} onClose={() => setRestoring(null)} />
+      <SnapshotEditModal edit={editing} onClose={() => setEditing(null)} onSaved={() => void snapshots.refresh()} />
       <DeleteModal
         opened={!!deleting}
         all={deleting === "source"}

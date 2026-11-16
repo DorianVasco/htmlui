@@ -65,7 +65,7 @@ describe("SourceDetailPage", () => {
     expect(rows).toHaveLength(2);
     expect(within(rows[0]).getByText("Before cleanup")).toBeInTheDocument();
     expect(within(rows[0]).getByText("latest-1")).toBeInTheDocument();
-    expect(within(rows[0]).getByLabelText("Pinned")).toBeInTheDocument();
+    expect(within(rows[0]).getByTestId("snapshot-pin")).toHaveTextContent("keep");
     expect(within(rows[1]).getByText("monthly-1")).toBeInTheDocument();
     expect(screen.getByText("1 pinned · 1 hidden")).toBeInTheDocument();
   });
@@ -126,6 +126,52 @@ describe("SourceDetailPage", () => {
     const req = JSON.parse(mock.history.post.find((r) => r.url === "/restore")!.data);
     expect(req.root).toBe("dir1");
     expect(req.fsOutput.targetPath).toBe("/data/docs (restored)/Invoices");
+  });
+});
+
+describe("snapshot descriptions and pins", () => {
+  const editRequests = () =>
+    mock.history.post.filter((r) => r.url === "/snapshots/edit").map((r) => JSON.parse(r.data));
+
+  test("edits the description", async () => {
+    mock.onPost("/snapshots/edit").reply(200, {});
+    renderPage();
+    const rows = await screen.findAllByTestId("snapshot-row");
+    await userEvent.click(within(rows[0]).getByRole("button", { name: "More snapshot actions" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Edit description…" }));
+    const field = await screen.findByLabelText("Description");
+    expect(field).toHaveValue("Before cleanup");
+    await userEvent.clear(field);
+    await userEvent.type(field, "After cleanup");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(editRequests()).toEqual([{ snapshots: ["new"], description: "After cleanup" }]));
+  });
+
+  test("adds a pin with the default name and rejects duplicates", async () => {
+    mock.onPost("/snapshots/edit").reply(200, {});
+    renderPage();
+    const rows = await screen.findAllByTestId("snapshot-row");
+    await userEvent.click(within(rows[0]).getByRole("button", { name: "More snapshot actions" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Add pin…" }));
+    const name = await screen.findByLabelText("Pin name");
+    expect(name).toHaveValue("do-not-delete");
+    await userEvent.clear(name);
+    await userEvent.type(name, "keep");
+    await userEvent.click(screen.getByRole("button", { name: "Pin" }));
+    expect(await screen.findByText("This snapshot already has that pin.")).toBeInTheDocument();
+    expect(editRequests()).toHaveLength(0);
+
+    await userEvent.clear(name);
+    await userEvent.type(name, "audit");
+    await userEvent.click(screen.getByRole("button", { name: "Pin" }));
+    await waitFor(() => expect(editRequests()).toEqual([{ snapshots: ["new"], addPins: ["audit"], removePins: [] }]));
+  });
+
+  test("removes a pin", async () => {
+    mock.onPost("/snapshots/edit").reply(200, {});
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: "Remove pin keep" }));
+    await waitFor(() => expect(editRequests()).toEqual([{ snapshots: ["new"], removePins: ["keep"] }]));
   });
 });
 
