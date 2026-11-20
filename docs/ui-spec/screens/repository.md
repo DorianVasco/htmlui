@@ -40,6 +40,15 @@ Right card (two thirds): a key/value table (labels dimmed, 170 px; values monosp
 | Error correction | “{ecc} ({eccOverheadPercent}%)”, or “disabled” when the percentage is 0                        |
 | Connected as     | “{username}@{hostname}”                                                                        |
 
+### Network limits card
+
+Below the details: a card with `IconGauge`, title “Network limits” and a summary, plus a default button “Edit…”. Loads `GET repo/throttle` once.
+
+- Summary: “No limits: Kopia uses the full connection speed.” when nothing is set; otherwise “Upload {rate} · Download {rate}”, plus “· {n} more limit(s)” when advanced limits are set. A rate is “unlimited” or e.g. “5 MB/s” (MB/s from 1 MB/s on, else KB/s; KiB/MiB with the base-2 Sizes preference).
+- `STORAGE_CONNECTION` (repository reached through a Kopia server): summary “Not available for repositories on a Kopia server.”, button disabled. Other load errors: “Could not load the limits: {message}”, button disabled.
+
+**Edit dialog**, title “Network limits – {description}”: text “Leave a field empty for no limit. Changes apply right away, also to snapshots that are running, and are kept after a restart.” Fields as in [native-only.md](../native-only.md#throttling-dialog): upload and download limit (number + unit select KB/s or MB/s), and under a collapsible “Advanced” (open when any advanced limit is set) reads/writes/lists per second and concurrent reads/writes. Buttons: subtle “Remove all limits” (clears every field; disabled when nothing is set), “Cancel”, “Save”. Save sends `PUT repo/throttle` with only the positive values (empty object = no limits), shows the green toast “Network limits saved” and reloads the summary; a failure shows a red alert “Could not save the limits” in the dialog.
+
 CLI equivalent: `repository status`.
 
 **Disconnect** confirmation: title “Disconnect from repository?”, text “This computer stops making snapshots until it is connected again. The repository and its snapshots are **not** deleted, and it stays in your repository list.”, buttons “Cancel” / red “Disconnect”. Calls `POST repo/disconnect`, clears the active known repository, refreshes the status (the screen then shows the setup layout). Failure → red toast “Could not disconnect”.

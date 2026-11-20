@@ -79,13 +79,13 @@ Severity mapping for server notifications: ≥ 20 error, ≥ 10 warning, else in
 
 Add a **“This app”** card above Notifications:
 
-| Label                       | Hint                                                                        | Control                                        | Stored                                          |
-| --------------------------- | --------------------------------------------------------------------------- | ---------------------------------------------- | ----------------------------------------------- |
-| Launch at login             | Start Kopia in the tray when you sign in.                                   | Switch (default off; offered during first run) | OS (StartupTask / SMAppService)                 |
-| Notify when backups succeed | Show a notification after every successful snapshot, not only for problems. | Switch (default off)                           | locally                                         |
-| Show in Dock (macOS)        | Turn off to keep Kopia only in the menu bar.                                | Switch (default on)                            | locally                                         |
-| Upload and download limits  | Limit how fast Kopia uses the network for this repository.                  | Button “Edit…” → throttling dialog             | locally, re-applied at server start (see below) |
-| Diagnostics                 | —                                                                           | Button “Show server log”                       | —                                               |
+| Label                       | Hint                                                                        | Control                                        | Stored                                   |
+| --------------------------- | --------------------------------------------------------------------------- | ---------------------------------------------- | ---------------------------------------- |
+| Launch at login             | Start Kopia in the tray when you sign in.                                   | Switch (default off; offered during first run) | OS (StartupTask / SMAppService)          |
+| Notify when backups succeed | Show a notification after every successful snapshot, not only for problems. | Switch (default off)                           | locally                                  |
+| Show in Dock (macOS)        | Turn off to keep Kopia only in the menu bar.                                | Switch (default on)                            | locally                                  |
+| Upload and download limits  | Limit how fast Kopia uses the network for this repository.                  | Button “Edit…” → throttling dialog             | in the repository config (by the server) |
+| Diagnostics                 | —                                                                           | Button “Show server log”                       | —                                        |
 
 ### Throttling dialog
 
@@ -103,7 +103,7 @@ Title “Network limits – {repository description}”. Loads `GET repo/throttl
 
 Save → `PUT repo/throttle` with only the non-empty fields. Success: green toast “Network limits saved”.
 
-`PUT repo/throttle` only changes the running server's throttler (`handleRepoSetThrottle` calls `Throttler().SetLimits` and doesn't write the config). The limits are lost when the server restarts. The app therefore stores them per repository and sends them again after each server start, once the repository is connected. **Open question:** whether to persist them in the repository config instead (the CLI's `kopia repository throttle set` does), which needs a server API that doesn't exist yet.
+`PUT repo/throttle` applies the limits right away and the server also saves them in the repository's config file (`repo/open.go` registers an update handler that writes `Throttling` to the config), so they survive restarts; the app doesn't need to store or re-apply them. The web UI offers the same dialog on the Repository screen ([screens/repository.md](screens/repository.md#network-limits-card)).
 
 ## Other storage types
 

@@ -206,6 +206,16 @@ export async function installDevMock(mode: DevMockMode): Promise<void> {
     repoDescription = req.clientOptions?.description || "My Repository";
     return [200, { connected: true }];
   });
+  // Network limits, kept like the server does (it also saves them in the repository config).
+  let throttle: Record<string, number> = { maxUploadSpeedBytesPerSecond: 5e6 };
+  mock.onGet("/repo/throttle").reply(() => [200, throttle]);
+  mock.onPut("/repo/throttle").reply((config) => {
+    const req = JSON.parse(config.data) as Record<string, number>;
+    if (Object.values(req).some((v) => v < 0))
+      return [400, { code: "MALFORMED_REQUEST", error: "unable to set limits: invalid limit" }];
+    throttle = req;
+    return [200, {}];
+  });
   mock.onPost("/repo/disconnect").reply(() => {
     connected = false;
     return [200, {}];

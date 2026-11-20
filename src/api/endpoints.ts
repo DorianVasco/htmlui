@@ -26,6 +26,7 @@ import type {
   TaskLogsResponse,
   TasksResponse,
   TasksSummary,
+  ThrottleLimits,
   UIPreferencesPayload,
 } from "./types";
 
@@ -43,6 +44,10 @@ export const repo = {
   setDescription: (description: string, o?: Opts) => post<RepoStatus>("/repo/description", { description }, o),
   /** Re-reads manifests from the repository (e.g. after another client wrote snapshots). */
   sync: (o?: Opts) => post<unknown>("/repo/sync", {}, o),
+  /** Network limits. Fails with STORAGE_CONNECTION for repositories reached through a Kopia server. */
+  throttle: (o?: Opts) => get<ThrottleLimits>("/repo/throttle", o),
+  /** Replaces all limits (omitted = unlimited). The server also saves them in the repository config. */
+  setThrottle: (limits: ThrottleLimits, o?: Opts) => put<unknown>("/repo/throttle", limits, o),
 };
 
 export const currentUser = (o?: Opts) => get<CurrentUser>("/current-user", o);

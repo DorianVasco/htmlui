@@ -292,6 +292,19 @@ export interface NotificationProfile {
   [key: string]: unknown;
 }
 
+// ---- network limits ----
+
+/** Throttling limits of a directly connected repository (GET/PUT repo/throttle). Missing or 0 = unlimited. */
+export interface ThrottleLimits {
+  readsPerSecond?: number;
+  writesPerSecond?: number;
+  listsPerSecond?: number;
+  maxUploadSpeedBytesPerSecond?: number;
+  maxDownloadSpeedBytesPerSecond?: number;
+  concurrentReads?: number;
+  concurrentWrites?: number;
+}
+
 // ---- UI preferences ----
 
 export interface UIPreferencesPayload {

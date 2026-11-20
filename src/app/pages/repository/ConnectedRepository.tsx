@@ -9,6 +9,7 @@ import { PageHeader } from "../../components";
 import { useRepoStatusContext } from "../../repoStatus";
 import { setActiveRepo, updateRepo } from "../../knownRepos";
 import { CliEquivalent } from "../../cli";
+import { NetworkLimitsCard } from "./NetworkLimits";
 
 function showError(title: string, err: unknown) {
   notifications.show({ color: "red", title, message: err instanceof Error ? err.message : String(err) });
@@ -125,6 +126,7 @@ export function ConnectedRepository({ status, currentId }: { status: RepoStatus;
           </Table>
         </Card>
       </SimpleGrid>
+      <NetworkLimitsCard description={status.description} />
       <CliEquivalent command="repository status" />
 
       <Modal opened={confirmOpened} onClose={confirm.close} title="Disconnect from repository?" centered>
