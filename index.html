@@ -6,18 +6,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Kopia UI" />
     <meta name="color-scheme" content="light dark" />
-    <link rel="apple-touch-icon" href="logo192.png" />
+    <link rel="apple-touch-icon" href="/logo192.png" />
     <link rel="manifest" href="/manifest.json" />
     <title>KopiaUI</title>
   </head>
-
-  <body id="kopia">
+  <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
-    <script type="module" src="/src/index.jsx"></script>
-    <div id="appVersion" style="display: none">
-      <hr />
-      <p class="version-info">Version %VITE_FULL_VERSION_INFO%</p>
-    </div>
+    <script type="module" src="/src/app/main.tsx"></script>
+    <!-- Version for the sidebar footer (src/app/version.ts). The build fills in
+         VITE_FULL_VERSION_INFO and the Kopia server inserts its own version into the
+         paragraph below; keep its markup exactly as is, or the server can't find it. -->
+    <div id="kopia-version" hidden><p class="version-info">Version %VITE_FULL_VERSION_INFO%</p></div>
   </body>
 </html>

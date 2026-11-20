@@ -48,7 +48,7 @@ Five entries, each with an icon (Tabler names; native glyphs are suggestions in 
 
 The active entry is highlighted (light variant of the primary color). An entry stays active on its sub-screens (e.g. Snapshots stays active on New snapshot and Source detail).
 
-Footer: a dot badge “Connected” (green) or “Not connected” (gray), shown once the status is known. (The web UI also shows “new UI preview”; drop it.)
+Footer: a dot badge “Connected” (green) or “Not connected” (gray), shown once the status is known, followed by the version (e.g. “v0.21.1”, full build info as tooltip) when known.
 
 ## Navigation targets
 

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link, NavLink as RouterNavLink, Outlet, useNavigate } from "react-router";
 import {
   ActionIcon,
@@ -39,6 +39,7 @@ import {
   IconSun,
 } from "@tabler/icons-react";
 import { useTasksSummary } from "../api";
+import { readAppVersion } from "./version";
 import { useRepoStatusContext } from "./repoStatus";
 import { useCurrentKnownRepo, useKnownRepos } from "./knownRepos";
 
@@ -220,6 +221,7 @@ export function AppLayout() {
   const repoStatus = useRepoStatusContext();
   const connected = !!repoStatus.data?.connected;
   const { runningCount } = useTasksSummary({ enabled: connected });
+  const [version] = useState(readAppVersion);
 
   return (
     <AppShell
@@ -267,9 +269,13 @@ export function AppLayout() {
                   Not connected
                 </Badge>
               ))}
-            <Text size="xs" c="dimmed">
-              new UI preview
-            </Text>
+            {version.short && (
+              <Tooltip label={version.full} multiline maw={300} disabled={version.full === version.short}>
+                <Text size="xs" c="dimmed">
+                  {version.short}
+                </Text>
+              </Tooltip>
+            )}
           </Group>
         </AppShell.Section>
       </AppShell.Navbar>

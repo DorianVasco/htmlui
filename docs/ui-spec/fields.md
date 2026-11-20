@@ -160,7 +160,7 @@ Source: `src/app/pages/repository/SetupWizard.tsx`.
 
 ## Storage forms
 
-> Forms for every storage type except `filesystem`, used by the web setup wizard (`storageTypes.ts`) and the native clients. Labels below are rewritten in sentence case. The original classic-setup label is given for reference. Field names and required fields come from the classic setup (`src/components/SetupRepository*.jsx`) and the server's option structs (`repo/blob/<provider>/*_options.go`). Secret fields use password inputs.
+> Forms for every storage type except `filesystem`, used by the web setup wizard (`storageTypes.ts`) and the native clients. Labels below are rewritten in sentence case. The original classic-setup label is given for reference. Field names and required fields come from the old UI's setup forms (`src/components/SetupRepository*.jsx`, removed from this repository; see the git history) and the server's option structs (`repo/blob/<provider>/*_options.go`). Secret fields use password inputs.
 
 ### Amazon S3 or compatible (`s3`)
 

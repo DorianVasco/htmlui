@@ -14,11 +14,6 @@ import { TasksPage } from "./pages/tasks/TasksPage";
 import { PreferencesPage } from "./pages/preferences/PreferencesPage";
 import { PoliciesPage } from "./pages/policies/PoliciesPage";
 
-/**
- * While the new UI is in development it lives under /ui; route paths below
- * match the old UI's, so switching over means changing only the basename.
- */
-export const BASENAME = "/ui";
 
 export function AppRoutes() {
   return (
@@ -48,7 +43,7 @@ export function App() {
   return (
     <MantineProvider theme={theme} defaultColorScheme="auto">
       <PreferencesProvider>
-        <BrowserRouter basename={BASENAME}>
+        <BrowserRouter>
           {/* Inside the router, so notifications can contain router links. */}
           <Notifications position="top-right" />
           <AppRoutes />
