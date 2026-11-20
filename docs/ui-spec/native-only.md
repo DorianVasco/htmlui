@@ -107,7 +107,7 @@ Save → `PUT repo/throttle` with only the non-empty fields. Success: green toas
 
 ## Other storage types
 
-The native setup wizard supports every storage card. Step 2 shows the type's form instead of the directory field ([fields.md](fields.md#storage-forms)); the rest of the wizard is the same, with these differences:
+The setup wizard supports every storage card (the web UI does too). Step 2 shows the type's form instead of the directory field ([fields.md](fields.md#storage-forms)); the rest of the wizard is the same, with these differences:
 
 | Type                                                                                  | Step 2 “Continue”                                                                                                                                          | Step 3                                                                                                                                                                           |
 | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

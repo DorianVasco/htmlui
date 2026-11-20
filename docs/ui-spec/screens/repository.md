@@ -85,22 +85,22 @@ A three-step stepper in a card (max 860 px). Steps can only be revisited backwar
 
 Text: “Choose where the repository lives. Kopia encrypts everything before it is written there.” Then a two-column grid of storage cards (label + description):
 
-| ID           | Label                   | Description                                                      | Web UI               |
-| ------------ | ----------------------- | ---------------------------------------------------------------- | -------------------- |
-| `filesystem` | Local directory or NAS  | A folder on this computer, an external drive or a network share. | supported            |
-| `s3`         | Amazon S3 or compatible | AWS S3, MinIO, Wasabi, Cloudflare R2 and others.                 | “Classic setup” link |
-| `b2`         | Backblaze B2            | Backblaze B2 cloud storage.                                      | “Classic setup” link |
-| `gcs`        | Google Cloud Storage    | A Google Cloud Storage bucket.                                   | “Classic setup” link |
-| `azureBlob`  | Azure Blob Storage      | A Microsoft Azure storage container.                             | “Classic setup” link |
-| `sftp`       | SFTP server             | Any server reachable over SSH/SFTP.                              | “Classic setup” link |
-| `webdav`     | WebDAV server           | Nextcloud, ownCloud and other WebDAV servers.                    | “Classic setup” link |
-| `rclone`     | Rclone remote           | Any backend supported by rclone.                                 | “Classic setup” link |
-| `_server`    | Kopia repository server | A repository shared by a Kopia server.                           | “Classic setup” link |
-| `_token`     | Repository token        | Connect using a token from another Kopia client.                 | “Classic setup” link |
+| ID           | Label                   | Description                                                      |
+| ------------ | ----------------------- | ---------------------------------------------------------------- |
+| `filesystem` | Local directory or NAS  | A folder on this computer, an external drive or a network share. |
+| `s3`         | Amazon S3 or compatible | AWS S3, MinIO, Wasabi, Cloudflare R2 and others.                 |
+| `b2`         | Backblaze B2            | Backblaze B2 cloud storage.                                      |
+| `gcs`        | Google Cloud Storage    | A Google Cloud Storage bucket.                                   |
+| `azureBlob`  | Azure Blob Storage      | A Microsoft Azure storage container.                             |
+| `sftp`       | SFTP server             | Any server reachable over SSH/SFTP.                              |
+| `webdav`     | WebDAV server           | Nextcloud, ownCloud and other WebDAV servers.                    |
+| `rclone`     | Rclone remote           | Any backend supported by rclone.                                 |
+| `_server`    | Kopia repository server | A repository shared by a Kopia server.                           |
+| `_token`     | Repository token        | Connect using a token from another Kopia client.                 |
 
-Supported cards are buttons: clicking selects the type (highlighted border) and goes to step 2. Unsupported cards are dimmed with a link “Classic setup ↗” to the old UI. **Native: every type is supported**, with the forms in [native-only.md](../native-only.md#other-storage-types).
+Every card is a button: clicking selects the type (highlighted border) and goes to step 2. Step 2 shows the directory field for `filesystem` and the type's form for all others ([fields.md](../fields.md#storage-forms)); the differences in steps 2 and 3 are listed in [native-only.md](../native-only.md#other-storage-types), which the web UI follows too.
 
-### Step 2: Location (filesystem)
+## Step 2: Location (filesystem)
 
 Path field “Directory” (required, focused). Help: “An existing repository is detected automatically; an empty or new folder creates a new one.” Placeholder `e.g. D:\Backups\kopia` (Windows) or `e.g. /mnt/backup/kopia`. Suggestions: “Recently used” = known filesystem repositories (path, with the description as caption); “Common locations” = `~/kopia-repository`, `~` resolved by the server.
 

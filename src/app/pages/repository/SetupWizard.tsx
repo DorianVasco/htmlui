@@ -3,7 +3,6 @@ import { useNavigate } from "react-router";
 import {
   Accordion,
   Alert,
-  Anchor,
   Button,
   Card,
   Group,
@@ -19,15 +18,22 @@ import {
   UnstyledButton,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconAlertTriangle, IconCircleCheck, IconExternalLink, IconFolder, IconInfoCircle } from "@tabler/icons-react";
+import { IconAlertTriangle, IconCircleCheck, IconInfoCircle } from "@tabler/icons-react";
 import { api, ApiError, useApi } from "../../../api";
 import type { AlgorithmOption, Algorithms, RepoConnectRequest } from "../../../api";
-import { legacy } from "../../legacy";
 import { rememberableStorage, rememberRepo, setActiveRepo, useKnownRepos } from "../../knownRepos";
 import { PathField } from "../../PathField";
 import { isMissingDirectory } from "../../storageErrors";
 import { useRepoStatusContext } from "../../repoStatus";
-import { STORAGE_TYPES } from "./storageTypes";
+import {
+  cleanConfig,
+  missingFields,
+  STORAGE_TYPES,
+  StorageConfig,
+  storageType as findStorageType,
+  validateConfig,
+} from "./storageTypes";
+import { StorageFields } from "./StorageFields";
 
 type Mode = "create" | "connect";
 
@@ -148,6 +154,8 @@ export function SetupWizard() {
   const [step, setStep] = useState(0);
   const [storageType, setStorageType] = useState("filesystem");
   const [path, setPath] = useState("");
+  const [config, setConfig] = useState<StorageConfig>({});
+  const [missing, setMissing] = useState<string[]>([]);
   const [mode, setMode] = useState<Mode | null>(null);
   const [folderMissing, setFolderMissing] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -170,7 +178,11 @@ export function SetupWizard() {
   const [submitting, setSubmitting] = useState(false);
   const [touched, setTouched] = useState(false);
 
-  const storage = { type: storageType, config: { path: path.trim() } };
+  const type = findStorageType(storageType);
+  const isFilesystem = storageType === "filesystem";
+  const isToken = storageType === "_token";
+  const storage = { type: storageType, config: isFilesystem ? { path: path.trim() } : cleanConfig(type, config) };
+  const where = isFilesystem ? path.trim() : type.summary(storage.config);
   const goTo = (s: number) => {
     setError(null);
     setTouched(false);
@@ -181,7 +193,23 @@ export function SetupWizard() {
 
   const checkLocation = async (e: FormEvent) => {
     e.preventDefault();
-    if (!path.trim()) {
+    if (!isFilesystem) {
+      const empty = missingFields(type, config);
+      setMissing(empty);
+      if (empty.length) return;
+      const invalid = validateConfig(type, config);
+      if (invalid) {
+        setError(invalid);
+        return;
+      }
+      if (type.connectOnly) {
+        // A Kopia server or a token always points at an existing repository.
+        setMode("connect");
+        setFolderMissing(false);
+        goTo(2);
+        return;
+      }
+    } else if (!path.trim()) {
       setError("Enter the directory where the repository is or should be stored.");
       return;
     }
@@ -199,7 +227,9 @@ export function SetupWizard() {
       setPath(resolvedPath);
     }
     try {
-      await api.repo.exists({ storage: { type: storageType, config: { path: resolvedPath } } });
+      await api.repo.exists({
+        storage: isFilesystem ? { type: storageType, config: { path: resolvedPath } } : storage,
+      });
       setMode("connect");
       setFolderMissing(false);
       setStep(2);
@@ -221,17 +251,22 @@ export function SetupWizard() {
     }
   };
 
-  const passwordError = touched && !password ? "Enter a password" : undefined;
+  const passwordError = touched && !password && !isToken ? "Enter a password" : undefined;
   const confirmError =
     touched && mode === "create" && password !== confirmPassword ? "Passwords don't match" : undefined;
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setTouched(true);
-    if (!password || (mode === "create" && password !== confirmPassword)) return;
+    if ((!password && !isToken) || (mode === "create" && password !== confirmPassword)) return;
 
     const clientOptions = { description, username: effectiveUser, hostname: effectiveHost, readonly };
-    const request: RepoConnectRequest = { storage, password, clientOptions };
+    // Same request shapes as the old UI: a token replaces storage and password, a server uses apiServer.
+    const request: RepoConnectRequest = isToken
+      ? { token: String(storage.config.token ?? ""), clientOptions }
+      : storageType === "_server"
+        ? { apiServer: storage.config, password, clientOptions }
+        : { storage, password, clientOptions };
     if (mode === "create") {
       const a = algorithms.data;
       request.options = {
@@ -272,8 +307,7 @@ export function SetupWizard() {
       notifications.show({
         color: "green",
         title: mode === "create" ? "Repository created" : "Connected",
-        message:
-          mode === "create" ? `New repository in ${path.trim()}` : `Connected to the repository in ${path.trim()}`,
+        message: mode === "create" ? `New repository in ${where}` : `Connected to the repository in ${where}`,
       });
       navigate("/snapshots");
     } catch (err) {
@@ -299,41 +333,30 @@ export function SetupWizard() {
               Choose where the repository lives. Kopia encrypts everything before it is written there.
             </Text>
             <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-              {STORAGE_TYPES.map((t) =>
-                t.supported ? (
-                  <UnstyledButton
-                    key={t.id}
-                    onClick={() => {
-                      setStorageType(t.id);
-                      goTo(1);
+              {STORAGE_TYPES.map((t) => (
+                <UnstyledButton
+                  key={t.id}
+                  onClick={() => {
+                    if (t.id !== storageType) {
+                      setConfig({ ...(t.defaults ?? {}) });
+                      setMissing([]);
+                    }
+                    setStorageType(t.id);
+                    goTo(1);
+                  }}
+                  aria-label={t.label}
+                >
+                  <Card
+                    padding="md"
+                    style={{
+                      borderColor: storageType === t.id ? "var(--mantine-primary-color-filled)" : undefined,
+                      height: "100%",
                     }}
-                    aria-label={t.label}
                   >
-                    <Card
-                      padding="md"
-                      style={{
-                        borderColor: storageType === t.id ? "var(--mantine-primary-color-filled)" : undefined,
-                        height: "100%",
-                      }}
-                    >
-                      <Group wrap="nowrap" align="flex-start">
-                        <ThemeIcon variant="light" size={36}>
-                          <IconFolder size={20} />
-                        </ThemeIcon>
-                        <Stack gap={2}>
-                          <Text fw={600} size="sm">
-                            {t.label}
-                          </Text>
-                          <Text size="xs" c="dimmed">
-                            {t.description}
-                          </Text>
-                        </Stack>
-                      </Group>
-                    </Card>
-                  </UnstyledButton>
-                ) : (
-                  <Card key={t.id} padding="md" style={{ opacity: 0.75 }}>
-                    <Group justify="space-between" wrap="nowrap" align="flex-start">
+                    <Group wrap="nowrap" align="flex-start">
+                      <ThemeIcon variant="light" size={36} color={t.connectOnly ? "gray" : undefined}>
+                        <t.icon size={20} />
+                      </ThemeIcon>
                       <Stack gap={2}>
                         <Text fw={600} size="sm">
                           {t.label}
@@ -342,35 +365,46 @@ export function SetupWizard() {
                           {t.description}
                         </Text>
                       </Stack>
-                      <Anchor href={legacy.repository()} size="xs" style={{ whiteSpace: "nowrap" }}>
-                        Classic setup <IconExternalLink size={12} style={{ verticalAlign: "middle" }} />
-                      </Anchor>
                     </Group>
                   </Card>
-                ),
-              )}
+                </UnstyledButton>
+              ))}
             </SimpleGrid>
           </Stack>
         </Stepper.Step>
 
-        <Stepper.Step label="Location" description="Directory path">
-          <form onSubmit={checkLocation}>
+        <Stepper.Step
+          label={isFilesystem ? "Location" : type.connectOnly ? "Connection" : "Settings"}
+          description={isFilesystem ? "Directory path" : type.label}
+        >
+          <form onSubmit={checkLocation} noValidate>
             <Stack mt="md">
-              <PathField
-                label="Directory"
-                description="An existing repository is detected automatically; an empty or new folder creates a new one."
-                placeholder={
-                  navigator.platform.startsWith("Win") ? "e.g. D:\\Backups\\kopia" : "e.g. /mnt/backup/kopia"
-                }
-                value={path}
-                onChange={setPath}
-                recent={knownRepos
-                  .filter((r) => r.storage.type === storageType)
-                  .map((r) => ({ path: r.storage.config.path, label: r.description }))}
-                locations={REPOSITORY_LOCATIONS}
-                required
-                autoFocus
-              />
+              {isFilesystem ? (
+                <PathField
+                  label="Directory"
+                  description="An existing repository is detected automatically; an empty or new folder creates a new one."
+                  placeholder={
+                    navigator.platform.startsWith("Win") ? "e.g. D:\\Backups\\kopia" : "e.g. /mnt/backup/kopia"
+                  }
+                  value={path}
+                  onChange={setPath}
+                  recent={knownRepos
+                    .filter((r) => r.storage.type === storageType)
+                    .map((r) => ({ path: r.storage.config.path, label: r.description }))}
+                  locations={REPOSITORY_LOCATIONS}
+                  required
+                  autoFocus
+                />
+              ) : (
+                <>
+                  {!type.connectOnly && (
+                    <Text size="sm" c="dimmed">
+                      An existing repository at this location is detected automatically; otherwise a new one is created.
+                    </Text>
+                  )}
+                  <StorageFields type={type} config={config} onChange={setConfig} missing={missing} />
+                </>
+              )}
               {errorAlert}
               <Group justify="space-between">
                 <Button variant="default" onClick={() => goTo(0)}>
@@ -390,41 +424,59 @@ export function SetupWizard() {
               {mode === "create" ? (
                 <Alert color="blue" icon={<IconInfoCircle />} title="A new repository will be created">
                   <Text size="sm">
-                    in <b>{path.trim()}</b>
+                    in <b>{where}</b>
                     {folderMissing ? " (the folder will be created)" : ""}. Choose a strong password – it encrypts your
                     backups and <b>cannot be recovered</b> if lost.
+                  </Text>
+                </Alert>
+              ) : type.connectOnly ? (
+                <Alert
+                  color="blue"
+                  icon={<IconInfoCircle />}
+                  title={isToken ? "Connect with a token" : "Connect to a Kopia server"}
+                >
+                  <Text size="sm">
+                    {isToken ? (
+                      "The token contains the repository location and password."
+                    ) : (
+                      <>
+                        at <b>{where}</b>. Enter the password the server's administrator set up for you.
+                      </>
+                    )}
                   </Text>
                 </Alert>
               ) : (
                 <Alert color="green" icon={<IconCircleCheck />} title="Existing repository found">
                   <Text size="sm">
-                    in <b>{path.trim()}</b>. Enter its password to connect.
+                    in <b>{where}</b>. Enter its password to connect.
                   </Text>
                 </Alert>
               )}
 
-              <SimpleGrid cols={{ base: 1, sm: mode === "create" ? 2 : 1 }}>
-                <PasswordInput
-                  label="Repository password"
-                  value={password}
-                  onChange={(e) => setPassword(e.currentTarget.value)}
-                  error={passwordError}
-                  required
-                  autoComplete={mode === "create" ? "new-password" : "current-password"}
-                  data-autofocus
-                  autoFocus
-                />
-                {mode === "create" && (
+              {!isToken && (
+                <SimpleGrid cols={{ base: 1, sm: mode === "create" ? 2 : 1 }}>
                   <PasswordInput
-                    label="Confirm password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.currentTarget.value)}
-                    error={confirmError}
+                    label={storageType === "_server" ? "Server password" : "Repository password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.currentTarget.value)}
+                    error={passwordError}
                     required
-                    autoComplete="new-password"
+                    autoComplete={mode === "create" ? "new-password" : "current-password"}
+                    data-autofocus
+                    autoFocus
                   />
-                )}
-              </SimpleGrid>
+                  {mode === "create" && (
+                    <PasswordInput
+                      label="Confirm password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.currentTarget.value)}
+                      error={confirmError}
+                      required
+                      autoComplete="new-password"
+                    />
+                  )}
+                </SimpleGrid>
+              )}
 
               <TextInput
                 label="Description"

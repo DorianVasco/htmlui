@@ -515,7 +515,6 @@
     "step.connect": "Connect",
     "step.options.description": "Password and options",
     "storage.intro": "Choose where the repository lives. Kopia encrypts everything before it is written there.",
-    "storage.classic": "Classic setup",
     "type.filesystem": "Local directory or NAS",
     "type.filesystem.description": "A folder on this computer, an external drive or a network share.",
     "type.s3": "Amazon S3 or compatible",

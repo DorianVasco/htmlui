@@ -169,7 +169,15 @@ export async function installDevMock(mode: DevMockMode): Promise<void> {
     "D:\\Backups",
   ]);
   mock.onPost("/repo/exists").reply((config) => {
-    const path = JSON.parse(config.data).storage?.config?.path;
+    const storage = JSON.parse(config.data).storage ?? {};
+    // Cloud and server storage: a bucket/container named "existing" holds a repository.
+    if (storage.type !== "filesystem") {
+      const c = storage.config ?? {};
+      return [c.bucket, c.container, c.path, c.remotePath, c.url].some((v) => String(v ?? "").includes("existing"))
+        ? [200, {}]
+        : [400, { code: "NOT_INITIALIZED", error: "repository not initialized" }];
+    }
+    const path = storage.config?.path;
     if (existingRepoPaths.has(path)) return [200, {}];
     if (existingFolders.has(path)) return [400, { code: "NOT_INITIALIZED", error: "repository not initialized" }];
     return [
@@ -191,8 +199,9 @@ export async function installDevMock(mode: DevMockMode): Promise<void> {
   });
   mock.onPost("/repo/connect").reply((config) => {
     const req = JSON.parse(config.data);
-    if (req.password !== MOCK_PASSWORD)
-      return [400, { code: "INVALID_PASSWORD", error: "invalid repository password" }];
+    // A token carries the password: "mock-token" is valid.
+    const ok = req.token !== undefined ? req.token === "mock-token" : req.password === MOCK_PASSWORD;
+    if (!ok) return [400, { code: "INVALID_PASSWORD", error: "invalid repository password" }];
     connected = true;
     repoDescription = req.clientOptions?.description || "My Repository";
     return [200, { connected: true }];
