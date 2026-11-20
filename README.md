@@ -2,6 +2,8 @@
 
 This is the repository for the html UI for kopia. It is bundled as part of the [kopia UI releases (e.g. `KopiaUI-Setup-X.Y.Z.exe` or a `kopiaui` package)](https://kopia.io/docs/installation/#two-variants-of-kopia).
 
+How to use it: see the [user guide](docs/user-guide.md).
+
 ## Reporting issues
 
 If you want to report a bug or have an idea for a feature request, please use the [issues list of the main kopia repository](https://github.com/kopia/kopia/issues?q=is%3Aissue+is%3Aopen+gui).
