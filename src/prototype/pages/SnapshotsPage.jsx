@@ -117,7 +117,12 @@ function NewSnapshotModal({ opened, onClose }) {
   return (
     <Modal opened={opened} onClose={onClose} title="New snapshot source" centered size="lg">
       <Stack>
-        <TextInput label="Path to back up" placeholder="e.g. C:\Users\me\Music" leftSection={<IconFolder size={16} />} data-autofocus />
+        <TextInput
+          label="Path to back up"
+          placeholder="e.g. C:\Users\me\Music"
+          leftSection={<IconFolder size={16} />}
+          data-autofocus
+        />
         <Card bg="var(--mantine-color-default-hover)" withBorder={false} padding="sm">
           <Text size="sm" c="dimmed">
             Estimate: 2 340 files · 14.8 GB · ~ 9 min on first run. Effective policy: global defaults.
@@ -175,15 +180,44 @@ export function SnapshotsPage({ navigate }) {
       />
 
       <SimpleGrid cols={{ base: 2, lg: 4 }} spacing={{ base: "xs", sm: "md" }} mb="lg">
-        <StatCard label="Sources" value={sources.length} hint={`${sources.filter((s) => s.lastSnapshot).length} with snapshots`} icon={IconArchive} />
-        <StatCard label="Protected data" value={sizeDisplayName(totalSize)} hint={`Repository: ${sizeDisplayName(repoStatus.totalSize)}`} icon={IconDatabase} color="cyan" />
-        <StatCard label="Next snapshot" value={relativeTime(upcoming?.nextSnapshotTime)} hint={upcoming?.source.path} icon={IconClockPlay} color="blue" />
-        <StatCard label="Attention" value={withErrors} hint="sources with errors in last run" icon={IconAlertTriangle} color="orange" />
+        <StatCard
+          label="Sources"
+          value={sources.length}
+          hint={`${sources.filter((s) => s.lastSnapshot).length} with snapshots`}
+          icon={IconArchive}
+        />
+        <StatCard
+          label="Protected data"
+          value={sizeDisplayName(totalSize)}
+          hint={`Repository: ${sizeDisplayName(repoStatus.totalSize)}`}
+          icon={IconDatabase}
+          color="cyan"
+        />
+        <StatCard
+          label="Next snapshot"
+          value={relativeTime(upcoming?.nextSnapshotTime)}
+          hint={upcoming?.source.path}
+          icon={IconClockPlay}
+          color="blue"
+        />
+        <StatCard
+          label="Attention"
+          value={withErrors}
+          hint="sources with errors in last run"
+          icon={IconAlertTriangle}
+          color="orange"
+        />
       </SimpleGrid>
 
       <Card padding={0}>
         <Group p="md" justify="space-between" gap="sm">
-          <TextInput placeholder="Filter by path" leftSection={<IconSearch size={16} />} value={query} onChange={(e) => setQuery(e.currentTarget.value)} w={{ base: "100%", sm: 280 }} />
+          <TextInput
+            placeholder="Filter by path"
+            leftSection={<IconSearch size={16} />}
+            value={query}
+            onChange={(e) => setQuery(e.currentTarget.value)}
+            w={{ base: "100%", sm: 280 }}
+          />
           <SegmentedControl
             size="xs"
             value={filter}
@@ -210,7 +244,10 @@ export function SnapshotsPage({ navigate }) {
                       {s.source.path}
                     </Text>
                     <Text size="xs" c="dimmed">
-                      {ownerName(s.source)} · {s.lastSnapshot ? relativeTime(s.lastSnapshot.startTime) + " · " + sizeDisplayName(s.lastSnapshot.totalSize) : "no snapshots"}
+                      {ownerName(s.source)} ·{" "}
+                      {s.lastSnapshot
+                        ? relativeTime(s.lastSnapshot.startTime) + " · " + sizeDisplayName(s.lastSnapshot.totalSize)
+                        : "no snapshots"}
                     </Text>
                   </Stack>
                   <Group gap={6}>
@@ -244,7 +281,11 @@ export function SnapshotsPage({ navigate }) {
             </Table.Thead>
             <Table.Tbody>
               {visible.map((s) => (
-                <Table.Tr key={ownerName(s.source) + s.source.path} style={{ cursor: "pointer" }} onClick={() => navigate({ page: "source", source: s })}>
+                <Table.Tr
+                  key={ownerName(s.source) + s.source.path}
+                  style={{ cursor: "pointer" }}
+                  onClick={() => navigate({ page: "source", source: s })}
+                >
                   <Table.Td>
                     <Group gap="sm" wrap="nowrap">
                       <IconFolder size={20} stroke={1.5} color="var(--mantine-color-teal-6)" />

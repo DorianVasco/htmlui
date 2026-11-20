@@ -2,7 +2,15 @@ import React, { ReactNode } from "react";
 import { Card, Group, Stack, Text, ThemeIcon, Title } from "@mantine/core";
 import type { Icon } from "@tabler/icons-react";
 
-export function PageHeader({ title, description, actions }: { title: string; description?: ReactNode; actions?: ReactNode }) {
+export function PageHeader({
+  title,
+  description,
+  actions,
+}: {
+  title: string;
+  description?: ReactNode;
+  actions?: ReactNode;
+}) {
   return (
     <Group justify="space-between" align="flex-end" mb="lg" gap="sm">
       <Stack gap={2}>

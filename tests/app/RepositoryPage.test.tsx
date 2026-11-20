@@ -88,7 +88,12 @@ describe("repository setup wizard", () => {
     const body = JSON.parse(mock.history.post.find((r) => r.url === "/repo/create")!.data);
     expect(body.storage).toEqual({ type: "filesystem", config: { path: "D:\\Backups\\kopia" } });
     expect(body.password).toBe("secret-1");
-    expect(body.clientOptions).toEqual({ description: "My Repository", username: "mail", hostname: "bruno", readonly: false });
+    expect(body.clientOptions).toEqual({
+      description: "My Repository",
+      username: "mail",
+      hostname: "bruno",
+      readonly: false,
+    });
     expect(body.options.blockFormat).toEqual({
       hash: "BLAKE2B-256-128",
       encryption: "AES256-GCM-HMAC-SHA256",
@@ -102,7 +107,8 @@ describe("repository setup wizard", () => {
   test("treats a missing directory as a new repository", async () => {
     mock.onPost("/repo/exists").reply(500, {
       code: "INTERNAL",
-      error: "internal server error: cannot access storage path: GetFileAttributesEx D:\\new: The system cannot find the file specified.",
+      error:
+        "internal server error: cannot access storage path: GetFileAttributesEx D:\\new: The system cannot find the file specified.",
     });
     renderAt("/repo");
     await goToLocation("D:\\new");
@@ -161,7 +167,11 @@ describe("connected repository page", () => {
     await userEvent.clear(input);
     await userEvent.type(input, "Renamed");
     await userEvent.click(screen.getByRole("button", { name: "Save description" }));
-    await waitFor(() => expect(mock.history.post.find((r) => r.url === "/repo/description")?.data).toBe(JSON.stringify({ description: "Renamed" })));
+    await waitFor(() =>
+      expect(mock.history.post.find((r) => r.url === "/repo/description")?.data).toBe(
+        JSON.stringify({ description: "Renamed" }),
+      ),
+    );
   });
 
   test("disconnects after confirmation", async () => {
@@ -184,7 +194,11 @@ describe("connected repository page", () => {
 
 test("isMissingDirectory recognizes Windows and Unix messages only", () => {
   const e = (msg: string) => new ApiError(msg, 500, "INTERNAL");
-  expect(isMissingDirectory(e("cannot access storage path: GetFileAttributesEx X: The system cannot find the file specified."))).toBe(true);
+  expect(
+    isMissingDirectory(
+      e("cannot access storage path: GetFileAttributesEx X: The system cannot find the file specified."),
+    ),
+  ).toBe(true);
   expect(isMissingDirectory(e("cannot access storage path: stat /x: no such file or directory"))).toBe(true);
   expect(isMissingDirectory(e("cannot access storage path: permission denied"))).toBe(false);
   expect(isMissingDirectory(new Error("no such file or directory"))).toBe(false);

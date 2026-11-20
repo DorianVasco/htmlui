@@ -14,7 +14,6 @@ import { TasksPage } from "./pages/tasks/TasksPage";
 import { PreferencesPage } from "./pages/preferences/PreferencesPage";
 import { PoliciesPage } from "./pages/policies/PoliciesPage";
 
-
 export function AppRoutes() {
   return (
     <RepoStatusProvider>

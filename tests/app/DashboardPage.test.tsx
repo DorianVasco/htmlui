@@ -20,19 +20,37 @@ const sourcesResponse = (multiUser = false) => ({
     {
       source: { path: "/home/user/documents", host: "testhost", userName: "testuser" },
       status: "IDLE",
-      lastSnapshot: { startTime: "2023-01-01T10:00:00Z", stats: { totalSize: 1024000 }, rootEntry: { summ: { files: 100, dirs: 10, numFailed: 1 } } },
+      lastSnapshot: {
+        startTime: "2023-01-01T10:00:00Z",
+        stats: { totalSize: 1024000 },
+        rootEntry: { summ: { files: 100, dirs: 10, numFailed: 1 } },
+      },
       nextSnapshotTime: "2099-01-02T10:00:00Z",
     },
     {
       source: { path: "/home/user/photos", host: "testhost", userName: "testuser" },
       status: "UPLOADING",
-      upload: { hashedFiles: 50, hashedBytes: 512000, cachedFiles: 20, cachedBytes: 204800, estimatedBytes: 1024000, directory: "/home/user/photos" },
+      upload: {
+        hashedFiles: 50,
+        hashedBytes: 512000,
+        cachedFiles: 20,
+        cachedBytes: 204800,
+        estimatedBytes: 1024000,
+        directory: "/home/user/photos",
+      },
       currentTask: "task123",
       lastSnapshot: null,
       nextSnapshotTime: null,
     },
     ...(multiUser
-      ? [{ source: { path: "/srv", host: "nas", userName: "root" }, status: "IDLE", lastSnapshot: null, nextSnapshotTime: null }]
+      ? [
+          {
+            source: { path: "/srv", host: "nas", userName: "root" },
+            status: "IDLE",
+            lastSnapshot: null,
+            nextSnapshotTime: null,
+          },
+        ]
       : []),
   ],
 });
@@ -74,12 +92,16 @@ describe("DashboardPage", () => {
     mock.onPost(/^\/sources\/upload/).reply(200, {});
     renderDashboard();
 
-    const docs = (await screen.findAllByTestId("source-row")).find((r) => r.textContent?.includes("/home/user/documents")) as HTMLElement;
+    const docs = (await screen.findAllByTestId("source-row")).find((r) =>
+      r.textContent?.includes("/home/user/documents"),
+    ) as HTMLElement;
     const getsBefore = mock.history.get.filter((r) => r.url === "/sources").length;
     await userEvent.click(within(docs).getByRole("button", { name: "Snapshot now" }));
 
     await waitFor(() => {
-      expect(mock.history.post.map((r) => r.url)).toContain("/sources/upload?userName=testuser&host=testhost&path=%2Fhome%2Fuser%2Fdocuments");
+      expect(mock.history.post.map((r) => r.url)).toContain(
+        "/sources/upload?userName=testuser&host=testhost&path=%2Fhome%2Fuser%2Fdocuments",
+      );
       expect(mock.history.get.filter((r) => r.url === "/sources").length).toBeGreaterThan(getsBefore);
     });
   });

@@ -1,6 +1,14 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import MockAdapter from "axios-mock-adapter";
-import { ApiError, apiClient, createApiClient, CSRF_HEADER, isNotConnected, onNotConnected, sourceQuery } from "../../src/api/client";
+import {
+  ApiError,
+  apiClient,
+  createApiClient,
+  CSRF_HEADER,
+  isNotConnected,
+  onNotConnected,
+  sourceQuery,
+} from "../../src/api/client";
 import * as api from "../../src/api/endpoints";
 
 function setCsrfMeta(value: string | null) {
@@ -63,7 +71,9 @@ describe("api client", () => {
   });
 
   test("sourceQuery encodes parts and treats missing ones as empty", () => {
-    expect(sourceQuery({ userName: "me", host: "pc", path: "C:\\My Docs" })).toBe("userName=me&host=pc&path=C%3A%5CMy%20Docs");
+    expect(sourceQuery({ userName: "me", host: "pc", path: "C:\\My Docs" })).toBe(
+      "userName=me&host=pc&path=C%3A%5CMy%20Docs",
+    );
     expect(sourceQuery({ host: "nas" })).toBe("userName=&host=nas&path=");
   });
 });
@@ -80,7 +90,9 @@ describe("endpoints", () => {
 
   test("snapshots.list adds all=1 only when requested", async () => {
     mock.onGet("/snapshots?" + q).reply(200, { snapshots: [], unfilteredCount: 0, uniqueCount: 0 });
-    mock.onGet("/snapshots?" + q + "&all=1").reply(200, { snapshots: [{ id: "a" }], unfilteredCount: 1, uniqueCount: 1 });
+    mock
+      .onGet("/snapshots?" + q + "&all=1")
+      .reply(200, { snapshots: [{ id: "a" }], unfilteredCount: 1, uniqueCount: 1 });
 
     expect((await api.snapshots.list(src)).snapshots).toHaveLength(0);
     expect((await api.snapshots.list(src, { all: true })).snapshots).toHaveLength(1);
@@ -97,7 +109,10 @@ describe("endpoints", () => {
   test("policies.resolve sends updates and number of upcoming times", async () => {
     mock.onPost("/policy/resolve?" + q).reply(200, { effective: {}, definition: {} });
     await api.policies.resolve(src, { retention: { keepLatest: 3 } });
-    expect(JSON.parse(mock.history.post[0].data)).toEqual({ updates: { retention: { keepLatest: 3 } }, numUpcomingSnapshotTimes: 5 });
+    expect(JSON.parse(mock.history.post[0].data)).toEqual({
+      updates: { retention: { keepLatest: 3 } },
+      numUpcomingSnapshotTimes: 5,
+    });
   });
 
   test("policies save/delete use PUT/DELETE on the policy URL", async () => {

@@ -35,7 +35,11 @@ async function openLocationStep() {
 }
 
 test("suggests recently used repositories and common locations", async () => {
-  rememberRepo({ storage: { type: "filesystem", config: { path: "/mnt/nas/kopia" } }, description: "NAS repo", clientOptions: { username: "mail", hostname: "bruno", readonly: false } });
+  rememberRepo({
+    storage: { type: "filesystem", config: { path: "/mnt/nas/kopia" } },
+    description: "NAS repo",
+    clientOptions: { username: "mail", hostname: "bruno", readonly: false },
+  });
   setActiveRepo(null);
   const input = await openLocationStep();
 
@@ -60,7 +64,9 @@ test("resolves a home-relative path before checking the location", async () => {
   expect(await screen.findByText("A new repository will be created")).toBeInTheDocument();
   await waitFor(() => {
     const exists = mock.history.post.find((r) => r.url === "/repo/exists");
-    expect(JSON.parse(exists!.data)).toEqual({ storage: { type: "filesystem", config: { path: "/home/mail/backups" } } });
+    expect(JSON.parse(exists!.data)).toEqual({
+      storage: { type: "filesystem", config: { path: "/home/mail/backups" } },
+    });
   });
   expect(screen.getByText("/home/mail/backups")).toBeInTheDocument();
 });

@@ -49,7 +49,12 @@ function ColorSchemeToggle() {
   const dark = computed === "dark";
   return (
     <Tooltip label={dark ? "Light mode" : "Dark mode"}>
-      <ActionIcon variant="default" size="lg" onClick={() => setColorScheme(dark ? "light" : "dark")} aria-label="Toggle color scheme">
+      <ActionIcon
+        variant="default"
+        size="lg"
+        onClick={() => setColorScheme(dark ? "light" : "dark")}
+        aria-label="Toggle color scheme"
+      >
         {dark ? <IconSun size={18} /> : <IconMoon size={18} />}
       </ActionIcon>
     </Tooltip>
@@ -114,7 +119,12 @@ export function PrototypeApp() {
           <Group gap="sm" wrap="nowrap">
             {runningTasks > 0 && (
               <Indicator processing color="teal" size={8} offset={2}>
-                <Badge variant="light" color="teal" style={{ cursor: "pointer" }} onClick={() => navigate({ page: "tasks" })}>
+                <Badge
+                  variant="light"
+                  color="teal"
+                  style={{ cursor: "pointer" }}
+                  onClick={() => navigate({ page: "tasks" })}
+                >
                   {runningTasks} running
                 </Badge>
               </Indicator>

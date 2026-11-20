@@ -23,7 +23,9 @@ beforeEach(() => {
   mock.onGet("/repo/status").reply(200, { connected: true, description: "Repo", storage: "filesystem" });
   mock.onGet("/tasks-summary").reply(200, {});
   mock.onGet("/sources").reply(() => [200, { localUsername: "mail", localHost: "bruno", multiUser: false, sources }]);
-  mock.onPost("/paths/resolve").reply((config) => [200, { source: { userName: "mail", host: "bruno", path: JSON.parse(config.data).path } }]);
+  mock
+    .onPost("/paths/resolve")
+    .reply((config) => [200, { source: { userName: "mail", host: "bruno", path: JSON.parse(config.data).path } }]);
   mock.onGet("/policy?" + SOURCE_Q).reply(404, { code: "NOT_FOUND", error: "not found" });
   mock.onPost("/policy/resolve?" + SOURCE_Q).reply(200, {
     effective: {
@@ -42,7 +44,9 @@ const renderPage = () => renderWithMantine(<AppRoutes />, { route: "/snapshots/n
 
 async function enterPath(path = "/data/docs") {
   await userEvent.type(await screen.findByLabelText(/Folder to back up/, { selector: "input" }), path);
-  expect(await screen.findByTestId("resolved-source", {}, { timeout: 3000 })).toHaveTextContent("mail@bruno:/data/docs");
+  expect(await screen.findByTestId("resolved-source", {}, { timeout: 3000 })).toHaveTextContent(
+    "mail@bruno:/data/docs",
+  );
 }
 
 describe("NewSnapshotPage", () => {
@@ -107,7 +111,13 @@ describe("NewSnapshotPage", () => {
       status: "SUCCESS",
       startTime: "2026-01-01T00:00:00Z",
       endTime: "2026-01-01T00:00:03Z",
-      counters: { Bytes: { value: 2000000 }, Files: { value: 1234 }, Directories: { value: 56 }, Errors: { value: 0 }, "Excluded Files": { value: 7 } },
+      counters: {
+        Bytes: { value: 2000000 },
+        Files: { value: 1234 },
+        Directories: { value: 56 },
+        Errors: { value: 0 },
+        "Excluded Files": { value: 7 },
+      },
     });
     renderPage();
     await enterPath();
@@ -120,7 +130,11 @@ describe("NewSnapshotPage", () => {
     expect(await screen.findByText("2 MB")).toBeInTheDocument();
     expect(result).toHaveTextContent(/1[,.]234/); // locale-dependent separator
     expect(result).toHaveTextContent("7 excluded");
-    expect(JSON.parse(mock.history.post.find((r) => r.url === "/estimate")!.data)).toEqual({ root: "/data/docs", maxExamplesPerBucket: 10, policyOverride: {} });
+    expect(JSON.parse(mock.history.post.find((r) => r.url === "/estimate")!.data)).toEqual({
+      root: "/data/docs",
+      maxExamplesPerBucket: 10,
+      policyOverride: {},
+    });
   });
 
   test("explains a folder that does not exist", async () => {

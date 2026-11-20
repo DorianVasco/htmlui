@@ -92,7 +92,9 @@ describe("usePolling", () => {
     const fetcher = vi.fn(
       (id: string) => new Promise<string>((resolve) => setTimeout(() => resolve("data-" + id), id === "a" ? 500 : 100)),
     );
-    const { result, rerender } = renderHook(({ id }) => usePolling((_signal) => fetcher(id), [id]), { initialProps: { id: "a" } });
+    const { result, rerender } = renderHook(({ id }) => usePolling((_signal) => fetcher(id), [id]), {
+      initialProps: { id: "a" },
+    });
 
     await flush(50);
     rerender({ id: "b" });
@@ -172,7 +174,14 @@ describe("data hooks", () => {
     let calls = 0;
     mock.onGet("/tasks/t1").reply(() => {
       calls++;
-      return [200, { id: "t1", status: calls < 3 ? "RUNNING" : "SUCCESS", endTime: calls < 3 ? undefined : "2026-01-01T00:00:00Z" }];
+      return [
+        200,
+        {
+          id: "t1",
+          status: calls < 3 ? "RUNNING" : "SUCCESS",
+          endTime: calls < 3 ? undefined : "2026-01-01T00:00:00Z",
+        },
+      ];
     });
     const { result } = renderHook(() => useTask("t1"));
     await flush(POLL.task * 10);

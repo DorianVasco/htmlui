@@ -57,7 +57,11 @@ export function SwitchRepositoryModal({ repo, onClose }: { repo: KnownRepo | nul
       });
       rememberRepo({ storage: repo.storage, description: repo.description, clientOptions: repo.clientOptions });
       await repoStatus.refresh();
-      notifications.show({ color: "green", title: "Switched repository", message: repo.description || repo.storage.config.path });
+      notifications.show({
+        color: "green",
+        title: "Switched repository",
+        message: repo.description || repo.storage.config.path,
+      });
       close();
       navigate("/snapshots");
     } catch (err) {
@@ -70,7 +74,12 @@ export function SwitchRepositoryModal({ repo, onClose }: { repo: KnownRepo | nul
   };
 
   return (
-    <Modal opened={!!repo} onClose={close} title={repo ? `Switch to “${repo.description || repo.storage.config.path}”` : ""} centered>
+    <Modal
+      opened={!!repo}
+      onClose={close}
+      title={repo ? `Switch to “${repo.description || repo.storage.config.path}”` : ""}
+      centered
+    >
       {repo && (
         <form onSubmit={submit}>
           <Stack>
@@ -80,8 +89,8 @@ export function SwitchRepositoryModal({ repo, onClose }: { repo: KnownRepo | nul
             {connected && !disconnectedOnError && (
               <Alert color="blue" icon={<IconInfoCircle />}>
                 <Text size="sm">
-                  The server is disconnected from {current ? <b>{current.description}</b> : "the current repository"} first. Scheduled snapshots only run for
-                  the connected repository.
+                  The server is disconnected from {current ? <b>{current.description}</b> : "the current repository"}{" "}
+                  first. Scheduled snapshots only run for the connected repository.
                 </Text>
               </Alert>
             )}

@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, test } from "vitest";
-import { forgetRepo, rememberableStorage, rememberRepo, resetKnownReposCache, updateRepo } from "../../src/app/knownRepos";
+import {
+  forgetRepo,
+  rememberableStorage,
+  rememberRepo,
+  resetKnownReposCache,
+  updateRepo,
+} from "../../src/app/knownRepos";
 
 const opts = { username: "u", hostname: "h", readonly: false };
 const list = () => JSON.parse(localStorage.getItem("kopia-known-repositories") ?? "[]");
@@ -11,7 +17,10 @@ describe("knownRepos", () => {
   });
 
   test("only remembers storage without secrets", () => {
-    expect(rememberableStorage({ type: "filesystem", config: { path: "/x" } })).toEqual({ type: "filesystem", config: { path: "/x" } });
+    expect(rememberableStorage({ type: "filesystem", config: { path: "/x" } })).toEqual({
+      type: "filesystem",
+      config: { path: "/x" },
+    });
     expect(rememberableStorage({ type: "s3", config: { bucket: "b", secretAccessKey: "s" } })).toBeNull();
     expect(rememberableStorage({ type: "filesystem", config: {} })).toBeNull();
   });

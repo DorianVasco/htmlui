@@ -1,5 +1,17 @@
 import React, { useState } from "react";
-import { ActionIcon, Card, Code, Drawer, Group, Progress, SegmentedControl, Stack, Table, Text, Tooltip } from "@mantine/core";
+import {
+  ActionIcon,
+  Card,
+  Code,
+  Drawer,
+  Group,
+  Progress,
+  SegmentedControl,
+  Stack,
+  Table,
+  Text,
+  Tooltip,
+} from "@mantine/core";
 import { IconX } from "@tabler/icons-react";
 import { tasks } from "../mockData";
 import { PageHeader, TaskStatusBadge } from "../components";
@@ -16,7 +28,9 @@ export function TasksPage() {
   const [filter, setFilter] = useState("all");
   const [open, setOpen] = useState(null);
 
-  const visible = tasks.filter((t) => filter === "all" || (filter === "running" ? t.status === "RUNNING" : t.status === "FAILED"));
+  const visible = tasks.filter(
+    (t) => filter === "all" || (filter === "running" ? t.status === "RUNNING" : t.status === "FAILED"),
+  );
 
   return (
     <>
@@ -94,7 +108,13 @@ export function TasksPage() {
         </Table.ScrollContainer>
       </Card>
 
-      <Drawer opened={!!open} onClose={() => setOpen(null)} position="right" size="lg" title={open ? `${open.kind} · ${open.id}` : ""}>
+      <Drawer
+        opened={!!open}
+        onClose={() => setOpen(null)}
+        position="right"
+        size="lg"
+        title={open ? `${open.kind} · ${open.id}` : ""}
+      >
         {open && (
           <Stack>
             <Group>

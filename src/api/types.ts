@@ -207,7 +207,12 @@ export interface FilesystemRestoreOutput {
 
 export interface RestoreRequest {
   root: string;
-  options?: { incremental?: boolean; ignoreErrors?: boolean; restoreDirEntryAtDepth?: number; minSizeForPlaceholder?: number };
+  options?: {
+    incremental?: boolean;
+    ignoreErrors?: boolean;
+    restoreDirEntryAtDepth?: number;
+    minSizeForPlaceholder?: number;
+  };
   fsOutput?: FilesystemRestoreOutput;
   zipFile?: string;
   uncompressedZip?: boolean;

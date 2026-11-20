@@ -9,7 +9,12 @@ import { AppRoutes } from "../../src/app/App";
 import { rememberRepo, resetKnownReposCache, setActiveRepo } from "../../src/app/knownRepos";
 import { installMantineDomStubs, renderWithMantine } from "../testutils/mantine";
 
-const CONNECTED = { connected: true, description: "Dev test repository", storage: "filesystem", configFile: "C:\\kopia\\repository.config" };
+const CONNECTED = {
+  connected: true,
+  description: "Dev test repository",
+  storage: "filesystem",
+  configFile: "C:\\kopia\\repository.config",
+};
 
 let mock: MockAdapter;
 let connected: boolean;
@@ -30,7 +35,11 @@ afterEach(() => mock.restore());
 
 const renderAt = (route: string) => renderWithMantine(<AppRoutes />, { route });
 const remember = (path: string, description: string) =>
-  rememberRepo({ storage: { type: "filesystem", config: { path } }, description, clientOptions: { username: "mail", hostname: "bruno", readonly: false } });
+  rememberRepo({
+    storage: { type: "filesystem", config: { path } },
+    description,
+    clientOptions: { username: "mail", hostname: "bruno", readonly: false },
+  });
 
 const disconnectOk = () =>
   mock.onPost("/repo/disconnect").reply(() => {
@@ -82,7 +91,9 @@ describe("quick switching", () => {
     mock.onPost("/repo/connect").reply(400, { code: "INVALID_PASSWORD", error: "invalid repository password" });
     renderAt("/repo");
 
-    const other = (await screen.findAllByTestId("known-repo")).find((r) => r.textContent?.includes("Other repo")) as HTMLElement;
+    const other = (await screen.findAllByTestId("known-repo")).find((r) =>
+      r.textContent?.includes("Other repo"),
+    ) as HTMLElement;
     await userEvent.click(within(other).getByRole("button", { name: "Switch" }));
     const dialog = await screen.findByRole("dialog");
     await userEvent.type(within(dialog).getByLabelText(/Repository password/), "wrong");
@@ -154,7 +165,11 @@ describe("quick switching", () => {
     await userEvent.click(screen.getByRole("button", { name: "Create repository" }));
 
     expect(await screen.findByText("Nothing is backed up yet.")).toBeInTheDocument();
-    expect(mock.history.post.map((r) => r.url).filter((u) => u?.startsWith("/repo/"))).toEqual(["/repo/exists", "/repo/disconnect", "/repo/create"]);
+    expect(mock.history.post.map((r) => r.url).filter((u) => u?.startsWith("/repo/"))).toEqual([
+      "/repo/exists",
+      "/repo/disconnect",
+      "/repo/create",
+    ]);
     expect(JSON.parse(localStorage.getItem("kopia-known-repositories") ?? "[]")).toHaveLength(2);
   });
 });

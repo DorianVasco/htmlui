@@ -46,20 +46,33 @@ export function useSnapshots(
   opts: { all?: boolean } & HookOptions<SnapshotsResponse> = {},
 ): PollingResult<SnapshotsResponse> {
   const { all = false, enabled = true, ...rest } = opts;
-  return useApi((signal) => api.snapshots.list(source as SourceInfo, { all }, { signal }), [source?.userName, source?.host, source?.path, all], {
-    ...rest,
-    enabled: enabled && !!source,
-  });
+  return useApi(
+    (signal) => api.snapshots.list(source as SourceInfo, { all }, { signal }),
+    [source?.userName, source?.host, source?.path, all],
+    {
+      ...rest,
+      enabled: enabled && !!source,
+    },
+  );
 }
 
 /** Contents of a snapshot directory object. */
-export function useDirectory(oid: string | null | undefined, options: HookOptions<DirectoryResponse> = {}): PollingResult<DirectoryResponse> {
+export function useDirectory(
+  oid: string | null | undefined,
+  options: HookOptions<DirectoryResponse> = {},
+): PollingResult<DirectoryResponse> {
   const { enabled = true, ...rest } = options;
-  return useApi((signal) => api.objects.directory(oid as string, { signal }), [oid], { ...rest, enabled: enabled && !!oid });
+  return useApi((signal) => api.objects.directory(oid as string, { signal }), [oid], {
+    ...rest,
+    enabled: enabled && !!oid,
+  });
 }
 
 /** Mount state of a snapshot directory. */
-export function useMount(oid: string | null | undefined, options: HookOptions<MountInfo> = {}): PollingResult<MountInfo> {
+export function useMount(
+  oid: string | null | undefined,
+  options: HookOptions<MountInfo> = {},
+): PollingResult<MountInfo> {
   const { enabled = true, ...rest } = options;
   return useApi((signal) => api.mounts.get(oid as string, { signal }), [oid], { ...rest, enabled: enabled && !!oid });
 }
@@ -70,10 +83,14 @@ export function usePolicies(options: HookOptions<PoliciesResponse> = {}): Pollin
 
 export function usePolicy(target: PolicyTarget | null | undefined, options: HookOptions<Record<string, unknown>> = {}) {
   const { enabled = true, ...rest } = options;
-  return useApi((signal) => api.policies.get(target as PolicyTarget, { signal }), [target?.userName, target?.host, target?.path], {
-    ...rest,
-    enabled: enabled && !!target,
-  });
+  return useApi(
+    (signal) => api.policies.get(target as PolicyTarget, { signal }),
+    [target?.userName, target?.host, target?.path],
+    {
+      ...rest,
+      enabled: enabled && !!target,
+    },
+  );
 }
 
 /** All tasks, polled every 3 s. */
@@ -108,7 +125,9 @@ export function useTaskLogs(
 }
 
 /** Task counts per status for the navigation badge, polled every 5 s. */
-export function useTasksSummary(options: HookOptions<TasksSummary> = {}): PollingResult<TasksSummary> & { runningCount: number } {
+export function useTasksSummary(
+  options: HookOptions<TasksSummary> = {},
+): PollingResult<TasksSummary> & { runningCount: number } {
   const result = usePolling((signal) => api.tasks.summary({ signal }), [], { ...options, interval: POLL.tasksSummary });
   return { ...result, runningCount: result.data?.RUNNING ?? 0 };
 }

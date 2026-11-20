@@ -67,7 +67,9 @@ export function totalSize(s: SourceStatus): number {
 export function nextScheduled(sources: SourceStatus[], now: number = Date.now()): SourceStatus | undefined {
   return sources
     .filter((s) => s.nextSnapshotTime && !isActive(s) && new Date(s.nextSnapshotTime).valueOf() >= now)
-    .sort((a, b) => new Date(a.nextSnapshotTime as string).valueOf() - new Date(b.nextSnapshotTime as string).valueOf())[0];
+    .sort(
+      (a, b) => new Date(a.nextSnapshotTime as string).valueOf() - new Date(b.nextSnapshotTime as string).valueOf(),
+    )[0];
 }
 
 export function needsAttention(s: SourceStatus, now: number = Date.now()): boolean {

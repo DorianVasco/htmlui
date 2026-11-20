@@ -13,6 +13,8 @@ export default defineConfig(() => {
     test: {
       globals: true,
       environment: "jsdom",
+      // Mantine pages in jsdom are slow when all test files run in parallel with coverage.
+      testTimeout: 15000,
       coverage: {
         exclude: ["**/build/**", ...coverageConfigDefaults.exclude],
       },

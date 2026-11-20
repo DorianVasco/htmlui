@@ -56,7 +56,10 @@ function BrowseDrawer({ snapshot, onClose, onRestore }) {
       {snapshot && (
         <Stack>
           <Text size="sm" c="dimmed">
-            {new Date(snapshot.startTime).toLocaleString()} · <Text span ff="monospace">{snapshot.id.slice(0, 12)}…</Text>
+            {new Date(snapshot.startTime).toLocaleString()} ·{" "}
+            <Text span ff="monospace">
+              {snapshot.id.slice(0, 12)}…
+            </Text>
           </Text>
           <Group gap="xs">
             <Button size="xs" leftSection={<IconRestore size={14} />} onClick={onRestore}>
@@ -72,7 +75,11 @@ function BrowseDrawer({ snapshot, onClose, onRestore }) {
                 <Table.Tr key={e.name} style={{ cursor: "pointer" }}>
                   <Table.Td>
                     <Group gap="xs" wrap="nowrap">
-                      {e.dir ? <IconFolder size={18} color="var(--mantine-color-yellow-6)" /> : <IconFile size={18} stroke={1.5} />}
+                      {e.dir ? (
+                        <IconFolder size={18} color="var(--mantine-color-yellow-6)" />
+                      ) : (
+                        <IconFile size={18} stroke={1.5} />
+                      )}
                       <Text size="sm">{e.name}</Text>
                     </Group>
                   </Table.Td>
@@ -150,7 +157,11 @@ export function SourceDetailPage({ source, navigate }) {
         description={`Snapshots of ${ownerName(source.source)}`}
         actions={
           <>
-            <Button variant="default" leftSection={<IconShieldCheck size={16} />} onClick={() => navigate({ page: "policies" })}>
+            <Button
+              variant="default"
+              leftSection={<IconShieldCheck size={16} />}
+              onClick={() => navigate({ page: "policies" })}
+            >
               Policy
             </Button>
             <Button leftSection={<IconPlayerPlay size={16} />}>Snapshot now</Button>
@@ -159,9 +170,23 @@ export function SourceDetailPage({ source, navigate }) {
       />
 
       <SimpleGrid cols={{ base: 1, xs: 3 }} mb="lg">
-        <StatCard label="Snapshots" value={snapshots.length} hint={`${snapshots.filter((s) => s.pins.length).length} pinned`} />
-        <StatCard label="Latest size" value={source.lastSnapshot ? sizeDisplayName(source.lastSnapshot.totalSize) : "—"} hint={source.lastSnapshot ? `${source.lastSnapshot.files.toLocaleString()} files` : ""} color="cyan" />
-        <StatCard label="Last run" value={source.lastSnapshot ? relativeTime(source.lastSnapshot.startTime) : "never"} hint={source.nextSnapshotTime ? `next ${relativeTime(source.nextSnapshotTime)}` : "manual schedule"} color="blue" />
+        <StatCard
+          label="Snapshots"
+          value={snapshots.length}
+          hint={`${snapshots.filter((s) => s.pins.length).length} pinned`}
+        />
+        <StatCard
+          label="Latest size"
+          value={source.lastSnapshot ? sizeDisplayName(source.lastSnapshot.totalSize) : "—"}
+          hint={source.lastSnapshot ? `${source.lastSnapshot.files.toLocaleString()} files` : ""}
+          color="cyan"
+        />
+        <StatCard
+          label="Last run"
+          value={source.lastSnapshot ? relativeTime(source.lastSnapshot.startTime) : "never"}
+          hint={source.nextSnapshotTime ? `next ${relativeTime(source.nextSnapshotTime)}` : "manual schedule"}
+          color="blue"
+        />
       </SimpleGrid>
 
       <Card padding={0}>
@@ -169,7 +194,13 @@ export function SourceDetailPage({ source, navigate }) {
           <Text fw={600}>History</Text>
           <Group gap="xs">
             <Switch size="xs" label="Show hidden" />
-            <Button size="xs" color="red" variant="light" leftSection={<IconTrash size={14} />} disabled={!selected.length}>
+            <Button
+              size="xs"
+              color="red"
+              variant="light"
+              leftSection={<IconTrash size={14} />}
+              disabled={!selected.length}
+            >
               Delete {selected.length || ""}
             </Button>
           </Group>
@@ -190,7 +221,11 @@ export function SourceDetailPage({ source, navigate }) {
               {snapshots.map((s) => (
                 <Table.Tr key={s.id} bg={selected.includes(s.id) ? "var(--mantine-primary-color-light)" : undefined}>
                   <Table.Td>
-                    <Checkbox checked={selected.includes(s.id)} onChange={() => toggle(s.id)} aria-label="Select snapshot" />
+                    <Checkbox
+                      checked={selected.includes(s.id)}
+                      onChange={() => toggle(s.id)}
+                      aria-label="Select snapshot"
+                    />
                   </Table.Td>
                   <Table.Td>
                     <Stack gap={0}>

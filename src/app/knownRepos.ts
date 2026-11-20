@@ -23,7 +23,10 @@ export function repoId(type: string, path: string): string {
 }
 
 /** Returns a rememberable storage spec, or null if the storage config may contain secrets. */
-export function rememberableStorage(storage: { type: string; config: Record<string, unknown> }): KnownRepo["storage"] | null {
+export function rememberableStorage(storage: {
+  type: string;
+  config: Record<string, unknown>;
+}): KnownRepo["storage"] | null {
   if (storage.type === "filesystem" && typeof storage.config.path === "string" && storage.config.path) {
     return { type: "filesystem", config: { path: storage.config.path } };
   }

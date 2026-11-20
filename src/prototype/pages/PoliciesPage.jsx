@@ -36,7 +36,13 @@ function policyTarget(t) {
 
 function PolicyEditorDrawer({ policy, onClose }) {
   return (
-    <Drawer opened={!!policy} onClose={onClose} position="right" size="xl" title={policy ? `Policy · ${policyTarget(policy.target)}` : ""}>
+    <Drawer
+      opened={!!policy}
+      onClose={onClose}
+      position="right"
+      size="xl"
+      title={policy ? `Policy · ${policyTarget(policy.target)}` : ""}
+    >
       {policy && (
         <Stack>
           <Text size="sm" c="dimmed">
@@ -72,7 +78,11 @@ function PolicyEditorDrawer({ policy, onClose }) {
             </Tabs.Panel>
             <Tabs.Panel value="schedule" pt="md">
               <Stack>
-                <Select label="Snapshot frequency" placeholder="(inherited: none)" data={["every 10 minutes", "every hour", "every 3 hours", "every 12 hours", "every 24 hours"]} />
+                <Select
+                  label="Snapshot frequency"
+                  placeholder="(inherited: none)"
+                  data={["every 10 minutes", "every hour", "every 3 hours", "every 12 hours", "every 24 hours"]}
+                />
                 <TagsInput label="Times of day" placeholder="e.g. 02:00" defaultValue={["02:00"]} />
                 <Switch label="Run missed snapshots on startup" />
                 <Card bg="var(--mantine-color-default-hover)" withBorder={false} padding="sm">
@@ -96,7 +106,11 @@ function PolicyEditorDrawer({ policy, onClose }) {
             </Tabs.Panel>
             <Tabs.Panel value="compression" pt="md">
               <Stack>
-                <Select label="Compression algorithm" placeholder="zstd (inherited)" data={["none", "zstd", "zstd-fastest", "zstd-better-compression", "s2-default", "pgzip"]} />
+                <Select
+                  label="Compression algorithm"
+                  placeholder="zstd (inherited)"
+                  data={["none", "zstd", "zstd-fastest", "zstd-better-compression", "s2-default", "pgzip"]}
+                />
                 <TagsInput label="Never compress extensions" defaultValue={[".jpg", ".mp4", ".zip"]} />
               </Stack>
             </Tabs.Panel>
@@ -148,7 +162,11 @@ export function PoliciesPage() {
               {policies.map((p) => {
                 const type = policyType(p.target);
                 return (
-                  <Table.Tr key={policyTarget(p.target) + p.target.host} style={{ cursor: "pointer" }} onClick={() => setEditing(p)}>
+                  <Table.Tr
+                    key={policyTarget(p.target) + p.target.host}
+                    style={{ cursor: "pointer" }}
+                    onClick={() => setEditing(p)}
+                  >
                     <Table.Td>
                       <Badge variant="light" color={type.color}>
                         {type.label}

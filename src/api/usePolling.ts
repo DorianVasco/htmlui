@@ -49,9 +49,13 @@ export function usePolling<T>(
   // `generation` changes whenever deps/enabled change; the fetch effect keys off it.
   // Resetting during render (instead of in the effect) avoids a stale-data render.
   const currentDeps = [enabled, ...deps];
-  const [state, setState] = useState<{ deps: DependencyList; generation: number; data?: T; error?: ApiError; isLoading: boolean }>(
-    () => ({ deps: currentDeps, generation: 0, isLoading: enabled }),
-  );
+  const [state, setState] = useState<{
+    deps: DependencyList;
+    generation: number;
+    data?: T;
+    error?: ApiError;
+    isLoading: boolean;
+  }>(() => ({ deps: currentDeps, generation: 0, isLoading: enabled }));
   if (!sameDeps(state.deps, currentDeps)) {
     setState({ deps: currentDeps, generation: state.generation + 1, isLoading: enabled });
   }

@@ -23,7 +23,12 @@ const src = (over: Partial<SourceStatus> = {}, owner = { userName: "me", host: "
 
 describe("uploadProgress", () => {
   test("counts hashed + cached bytes against the estimate, like the old UI", () => {
-    const p = uploadProgress(src({ status: "UPLOADING", upload: { hashedBytes: 512000, cachedBytes: 204800, estimatedBytes: 1024000, hashedFiles: 50, cachedFiles: 20 } }));
+    const p = uploadProgress(
+      src({
+        status: "UPLOADING",
+        upload: { hashedBytes: 512000, cachedBytes: 204800, estimatedBytes: 1024000, hashedFiles: 50, cachedFiles: 20 },
+      }),
+    );
     expect(p?.doneBytes).toBe(716800);
     expect(p?.percent).toBe(70);
     expect(p?.files).toBe(70);

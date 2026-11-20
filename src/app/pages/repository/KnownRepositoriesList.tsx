@@ -34,7 +34,12 @@ export function KnownRepositoriesList({
               data-testid="known-repo"
             >
               <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
-                <IconFolder size={20} stroke={1.5} color="var(--mantine-primary-color-filled)" style={{ flexShrink: 0 }} />
+                <IconFolder
+                  size={20}
+                  stroke={1.5}
+                  color="var(--mantine-primary-color-filled)"
+                  style={{ flexShrink: 0 }}
+                />
                 <Stack gap={0} style={{ minWidth: 0 }}>
                   <Group gap={6}>
                     <Text size="sm" fw={600}>
@@ -66,7 +71,12 @@ export function KnownRepositoriesList({
                   </Button>
                 )}
                 <Tooltip label="Forget (removes it from this list only)">
-                  <ActionIcon variant="subtle" color="gray" aria-label={`Forget ${r.description}`} onClick={() => forgetRepo(r.id)}>
+                  <ActionIcon
+                    variant="subtle"
+                    color="gray"
+                    aria-label={`Forget ${r.description}`}
+                    onClick={() => forgetRepo(r.id)}
+                  >
                     <IconTrash size={16} />
                   </ActionIcon>
                 </Tooltip>

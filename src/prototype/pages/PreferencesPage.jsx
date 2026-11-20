@@ -1,5 +1,15 @@
 import React from "react";
-import { Button, Card, Group, SegmentedControl, Select, Stack, Switch, Text, useMantineColorScheme } from "@mantine/core";
+import {
+  Button,
+  Card,
+  Group,
+  SegmentedControl,
+  Select,
+  Stack,
+  Switch,
+  Text,
+  useMantineColorScheme,
+} from "@mantine/core";
 import { IconBell, IconPlus } from "@tabler/icons-react";
 import { PageHeader } from "../components";
 
@@ -47,7 +57,14 @@ export function PreferencesPage() {
             <SegmentedControl size="xs" defaultValue="md" data={["sm", "md", "lg"]} />
           </Row>
           <Row label="Byte representation" hint="1 KB = 1000 B or 1 KiB = 1024 B">
-            <SegmentedControl size="xs" defaultValue="10" data={[{ label: "Base 10", value: "10" }, { label: "Base 2", value: "2" }]} />
+            <SegmentedControl
+              size="xs"
+              defaultValue="10"
+              data={[
+                { label: "Base 10", value: "10" },
+                { label: "Base 2", value: "2" },
+              ]}
+            />
           </Row>
           <Row label="Rows per page">
             <Select w={100} size="xs" defaultValue="20" data={["10", "20", "50", "100"]} />
